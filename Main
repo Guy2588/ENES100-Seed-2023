@@ -1,6 +1,14 @@
-/*
+//Initialize pins
 
-*/
+//H-bridge
+const int H1pwm1 = 13;
+const int H1pwm2 = 12;
+
+const int H2pwm1 = 10;
+const in H2pwm2 = 9;
+
+//servos
+
 
 void setup() {
     
