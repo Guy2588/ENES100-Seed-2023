@@ -1,19 +1,366 @@
+//Add libraries
+#include <Enes100.h>
+#include <math.h>
+
 //Initialize pins
 
 //H-bridge
 const int H1pwm1 = 13;
 const int H1pwm2 = 12;
+const int H1_3 = 22;
+const int H1_4 = 23;
+const int H1_5 = 24;
+const int H1_6 = 25;
 
 const int H2pwm1 = 10;
-const in H2pwm2 = 9;
+const int H2pwm2 = 9;
+const int H2_7 = 26;
+const int H2_8 = 27;
+const int H2_9 = 28;
+const int H2_10 = 29;
 
-//servos
+//servos (all pins pwm)
+const int S1 = 4;
+const int S2 = 3;
+
+//ultrasonic sensors
+const int US_front_out = 34;
+const int US_front_in = 35;
+const int US_left_out = 36;
+const int US_left_in = 37;
+const int US_right_out = 38;
+const int US_right_in = 39;
+
+//MOSFET (transistor for vacuum servo)
+const int MOSFET = 45;
+
+//ringlight
+const int Light_1 = 46;
+const int Light_2 = 47;
+
+//camera
+const int Cam_pwr = 50; //if plugged into arduino, ground can be rewired elsewhere
+const int Cam_Tx = 51;
+const int Cam_Rx = 52;
+
+//other constants
+const int frontTooClose = 20; //in cm
+const int rightTooClose = 20;
+const int leftTooClose = 20;
+const int roverRadius = 10; //distance from center of rotation to any sensor (may need changing)
+const int marginOfError = 5;
+const int ArucoMarkerID = 3;
+
+//enums
+enum axis {
+	X,
+	Y,
+	rot
+};
+enum color {
+	white,
+	blue,
+	orange,
+	pink,
+	green,
+	red
+};
+
+
+//running time in ticks
+unsigned int ticks = 0;
+
+//distance variables (in cm)
+long US_front_dist;
+long US_left_dist;
+long US_right_dist;
+
 
 
 void setup() {
-    
+	Serial.begin(9600);
+	//setup light
+	//pinMode(Light_1, OUTPUT);
+	//pinMode(Light_2, OUTPUT);
+	lightOn(true);
+	setColor(white);
+	//setup ultrasonics
+pinMode(US_front_out, OUTPUT);
+pinMode(US_front_in, INPUT);
+pinMode(US_left_out, OUTPUT);
+pinMode(US_left_in, INPUT);
+pinMode(US_right_out, OUTPUT);
+pinMode(US_right_in, INPUT);
+//setup vision system
+Enes100.begin("Farmers\' Insurance", SEED, ArucoMarkerID, Cam_Tx, Cam_Rx);
+//setup h-bridge and motors
+	pinMode(H1pwm1, OUTPUT); //speed for motor 1
+	pinMode(H1pwm2, OUTPUT); //speed for motor 2
+	pinMode(H1_3, OUTPUT);
+	pinMode(H1_4, OUTPUT);
+	pinMode(H1_5, OUTPUT);
+	pinMode(H1_6, OUTPUT);
+	pinMode(H2pwm1, OUTPUT); //speed for motor 3
+	pinMode(H2pwm2, OUTPUT); //speed for motor 4
+	pinMode(H2_7, OUTPUT);
+	pinMode(H2_8, OUTPUT);
+	pinMode(H2_9, OUTPUT);
+	pinMode(H2_10, OUTPUT);
+	//finished setup!
+	setColor(green);
+}
+
+void updateUltrasonics(bool front = true, bool left = true, bool right = true) {
+	if(front) digitalWrite(US_front_out, LOW); //low pulse to ensure clean high pulse
+	if(left) digitalWrite(US_left_out, LOW);
+	if(right) digitalWrite(US_right_out, LOW);
+delayMicroseconds(5);
+//send echolocation pulse
+if(front) digitalWrite(US_front_out, HIGH);
+if(left) digitalWrite(US_left_out, HIGH);
+if(right) digitalWrite(US_right_out, HIGH);
+delayMicroseconds(10);
+//turn pulse off
+if(front) digitalWrite(US_front_out, LOW);
+if(left) digitalWrite(US_left_out, LOW);
+if(right) digitalWrite(US_right_out, LOW);
+
+//read signal in centimeters
+if(front) US_front_dist = (pulseIn(US_front_in, HIGH)/2)/29.1;
+if(left) US_left_dist = (pulseIn(US_left_in, HIGH)/2)/29.1;
+if(right) US_right_dist = (pulseIn(US_right_in, HIGH)/2)/29.1;
+}
+
+
+bool frontIsClear() {
+	if (US_front_dist <= frontTooClose) {
+	return false;
+}
+return true;
+}
+
+bool rightIsClear() {
+	if (US_right_dist <= rightTooClose) {
+	return false;
+}
+return true;
+}
+
+bool leftIsClear() {
+	if (US_left_dist <= leftTooClose) {
+	return false;
+}
+return true;
+}
+
+bool checkPosition(axis A, float expectedPosition, float error) {
+	setColor(blue);
+	bool result = false;
+	if (A =X) {
+	if (Enes100.getX() + error > expectedPosition && Enes100.getX() - error < expectedPosition) {
+	result = true;
+}
+} else if (A =Y) {
+	if (Enes100.getY() + error > expectedPosition && Enes100.getY() - error < expectedPosition) {
+	result = true;
+}
+} else if (A =rot) {
+	if (Enes100.getTheta() + error > expectedPosition && Enes100.getTheta() - error < expectedPosition) {
+	result = true;
+}
+}
+if (result) {
+	setColor(green);
+} else {
+	setColor(red);
+}
+return result;
+}
+
+//will eventually need to include side ultrasonics for wall collision avoidance
+void tryMoveForwards(int distance = -1) {
+	updateUltrasonics(true, false, false);
+	while (frontIsClear && distance != 0) {
+		//move forwards
+		analogWrite(H1pwm1, 255);
+		analogWrite(H1pwm2, 255);
+		analogWrite(H2pwm1, 255);
+		analogWrite(H2pwm2, 255);
+		digitalWrite(H1_3, HIGH);
+		digitalWrite(H1_4, LOW);
+		digitalWrite(H1_5, HIGH);
+		digitalWrite(H1_6, LOW);
+		digitalWrite(H2_7, HIGH);
+		digitalWrite(H2_8, LOW);
+		digitalWrite(H2_9, HIGH);
+		digitalWrite(H2_10, LOW);
+		//update end conditions
+		updateUltrasonics(true, false, false);
+		//something something distance
+		
+}
+}
+
+//turns clockwise until the rover is facing a certain angle
+void tryRotate(int distance = -1) {
+	while (distance != 0) {
+		//move backwards
+		analogWrite(H1pwm1, 255);
+		analogWrite(H1pwm2, 255);
+		analogWrite(H2pwm1, 255);
+		analogWrite(H2pwm2, 255);
+		digitalWrite(H1_3, HIGH);
+		digitalWrite(H1_4, LOW);
+		digitalWrite(H1_5, LOW);
+		digitalWrite(H1_6, HIGH);
+		digitalWrite(H2_7, HIGH);
+		digitalWrite(H2_8, LOW);
+		digitalWrite(H2_9, LOW);
+		digitalWrite(H2_10, HIGH);
+
+	}
+}
+
+void tryMoveRight(int distance = -1) {
+	updateUltrasonics(false, false, true);
+	while (rightIsClear && distance != 0) {
+		//move right
+		analogWrite(H1pwm1, 255);
+		analogWrite(H1pwm2, 255);
+		analogWrite(H2pwm1, 255);
+		analogWrite(H2pwm2, 255);
+		digitalWrite(H1_3, HIGH);
+		digitalWrite(H1_4, LOW);
+		digitalWrite(H1_5, LOW);
+		digitalWrite(H1_6, HIGH);
+		digitalWrite(H2_7, LOW);
+		digitalWrite(H2_8, HIGH);
+		digitalWrite(H2_9, HIGH);
+		digitalWrite(H2_10, LOW);
+		//update end conditions
+		updateUltrasonics(false, false, true);
+
+	}
+}
+
+
+void tryMoveLeft(int distance = -1) {
+	updateUltrasonics(false, true, false);
+	while (leftIsClear && distance != 0) {
+		//move left
+		analogWrite(H1pwm1, 255);
+		analogWrite(H1pwm2, 255);
+		analogWrite(H2pwm1, 255);
+		analogWrite(H2pwm2, 255);
+		digitalWrite(H1_3, LOW);
+		digitalWrite(H1_4, HIGH);
+		digitalWrite(H1_5, HIGH);
+		digitalWrite(H1_6, LOW);
+		digitalWrite(H2_7, HIGH);
+		digitalWrite(H2_8, LOW);
+		digitalWrite(H2_9, LOW);
+		digitalWrite(H2_10, HIGH);
+		//update end conditions
+		updateUltrasonics(false, true, false);
+
+	}
+}
+
+void stopMove(int distance = -1) {
+	while (frontIsClear && distance != 0) {
+		//stop
+		analogWrite(H1pwm1, 0);
+		analogWrite(H1pwm2, 0);
+		analogWrite(H2pwm1, 0);
+		analogWrite(H2pwm2, 0);
+		digitalWrite(H1_3, LOW);
+		digitalWrite(H1_4, LOW);
+		digitalWrite(H1_5, LOW);
+		digitalWrite(H1_6, LOW);
+		digitalWrite(H2_7, LOW);
+		digitalWrite(H2_8, LOW);
+		digitalWrite(H2_9, LOW);
+		digitalWrite(H2_10, LOW);
+
+	}
+}
+
+void lightOn (bool on) {
+	if(on){
+	//turn on light
+} else {
+	//turn off light
+}
+}
+
+void setColor(color C) {
+	//functionality later
+}
+
+void celebrate() {
+	setColor(orange);
+	delay(500);
+	setColor(pink);
+	delay(500);
+	setColor(green);
+	delay(60000); //wait 1 min
 }
 
 void loop() {
-    
+bool startedAtTop = false;	
+//turn towards mission site
+	if(Enes100.getY() > 1) { //above halfway point? Top position
+	tryRotate(-M_PI/2);
+	startedAtTop = true;
+	setColor(orange);
+} else { //otherwise, bottom position
+	tryRotate(M_PI/2);
+	setColor(pink);
 }
+//move forward to mission site until rover detects site
+tryMoveForwards();
+//check ultrasonic sensor against vision system
+bool withinExpected = false;
+if (startedAtTop) {
+	checkPosition(Y, 0.55+0.083+frontTooClose+roverRadius, marginOfError);
+} else {
+	checkPosition(Y, 0.55+0.9-0.083-frontTooClose-roverRadius, marginOfError);
+}
+
+/*mission*/
+delay(1000);
+
+setColor(orange);
+//move away from mission site until X coordinate is 1.2 m
+if(startedAtTop) {
+	tryMoveLeft(1.2);
+} else {
+	tryMoveRight(1.2);
+}
+//face towards goal area
+tryRotate(0);
+
+//navigate obstacle field (for MS5)
+//navigateObstacleField();
+
+setColor(pink);
+//move to arena edge
+tryMoveLeft();
+checkPosition(Y, 2-roverRadius-leftTooClose, marginOfError);
+delay(500);
+
+setColor(white);
+//move forward, but make sure not to hit the side (turn red if too close)
+tryMoveForwards();
+
+setColor(green);
+	//strafe to center Y against limbo log
+	tryMoveRight(1.6);
+
+	//move into destination zone
+	tryMoveForwards(3.7);
+	
+	//finished!
+	celebrate();
+}
+
