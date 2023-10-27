@@ -1,0 +1,22 @@
+#include <Enes100.h>
+#include <math.h>
+#include <Tank.h>
+
+void setup() {
+  Serial.begin(9600);
+  Tank.begin();
+  delay(2000);
+  Enes100.begin("Farmers\' Insurance", SEED, 16, 52, 50);
+  delay(2000);
+  Enes100.println("Sucessfully connected to the Vision System");
+}
+
+void loop() {
+  Enes100.print("X: ");
+  Enes100.print(Enes100.getX());
+  Enes100.print(" Y: ");
+  Enes100.print(Enes100.getY());
+  Enes100.print(" Rot: ");
+  Enes100.println(Enes100.getTheta());
+  delay(1000);
+}
