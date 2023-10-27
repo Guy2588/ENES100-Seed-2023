@@ -44,11 +44,11 @@ const int Cam_Tx = 51;
 const int Cam_Rx = 52;
 
 //other constants
-const int frontTooClose = 20; //in cm
-const int rightTooClose = 20;
-const int leftTooClose = 20;
-const int roverRadius = 10; //distance from center of rotation to any sensor (may need changing)
-const int marginOfError = 5;
+const float frontTooClose = 20; //in cm
+const float rightTooClose = 20;
+const float leftTooClose = 20;
+const float roverRadius = 10; //distance from center of rotation to any sensor (may need changing)
+const float marginOfError = 5;
 const int ArucoMarkerID = 3;
 
 //enums
@@ -65,6 +65,12 @@ enum color {
 	green,
 	red
 };
+enum missionTask{
+	predict,
+	succ,
+	seed,
+	rice
+};
 
 
 //running time in ticks
@@ -80,8 +86,8 @@ long US_right_dist;
 void setup() {
 	Serial.begin(9600);
 	//setup light
-	//pinMode(Light_1, OUTPUT);
-	//pinMode(Light_2, OUTPUT);
+	pinMode(Light_1, OUTPUT);
+	pinMode(Light_2, OUTPUT);
 	lightOn(true);
 	setColor(white);
 	//setup ultrasonics
@@ -92,7 +98,9 @@ pinMode(US_left_in, INPUT);
 pinMode(US_right_out, OUTPUT);
 pinMode(US_right_in, INPUT);
 //setup vision system
+delay(2000);
 Enes100.begin("Farmers\' Insurance", SEED, ArucoMarkerID, Cam_Tx, Cam_Rx);
+delay(2000);
 //setup h-bridge and motors
 	pinMode(H1pwm1, OUTPUT); //speed for motor 1
 	pinMode(H1pwm2, OUTPUT); //speed for motor 2
@@ -177,10 +185,32 @@ if (result) {
 return result;
 }
 
+float endPos[2];
+void calculateEndPos(float distance, float startPos[2]) {
+	//edit endPos
+	endPos[0] = startPos[0] + cos(Enes100.getTheta()) * distance;
+	endPos[1] = startPos[1] + sin(Enes100.getTheta()) * distance;
+}
+
+//calculates if the rover is at a position within a margin of error
+bool roverAtPos(float pos[2], float error) {
+	bool xTrue = (pos[0] + error > Enes100.getX() && pos[0] - error < Enes100.getX());
+	bool yTrue = (pos[1] + error > Enes100.getY() && pos[1] - error < Enes100.getY());
+	return xTrue && yTrue;
+}
+
+//calculates if the rover is at a rotation within a margin of error
+bool roverAtRot(float rot, float error) {
+	return (rot + error > Enes100.getTheta() && rot - error < Enes100.getTheta());
+}
+
 //will eventually need to include side ultrasonics for wall collision avoidance
-void tryMoveForwards(int distance = -1) {
+void tryMoveForwards(float distance = -1) {
+	float initRot = Enes100.getTheta();
+	float startPos[2] = {Enes100.getX(), Enes100.getY()};
+	calculateEndPos(distance, startPos); //this updates variable endPos
 	updateUltrasonics(true, false, false);
-	while (frontIsClear && distance != 0) {
+	while (frontIsClear() && !roverAtPos(endPos, 0.10)) {
 		//move forwards
 		analogWrite(H1pwm1, 255);
 		analogWrite(H1pwm2, 255);
@@ -194,17 +224,21 @@ void tryMoveForwards(int distance = -1) {
 		digitalWrite(H2_8, LOW);
 		digitalWrite(H2_9, HIGH);
 		digitalWrite(H2_10, LOW);
-		//update end conditions
-		updateUltrasonics(true, false, false);
-		//something something distance
-		
+		if(initRot != Enes100.getTheta()) {
+	tryRotate(initRot);
 }
+		//update end conditions
+		updateUltrasonics(true, false, false);		
+}
+if(!frontIsClear()) {setColor(red);}
+else {setColor(green);}
+stopMove();
 }
 
 //turns clockwise until the rover is facing a certain angle
-void tryRotate(int distance = -1) {
-	while (distance != 0) {
-		//move backwards
+void tryRotate(int distance) {
+	while (!roverAtRot(distance, 0.3)) {
+		//turn right
 		analogWrite(H1pwm1, 255);
 		analogWrite(H1pwm2, 255);
 		analogWrite(H2pwm1, 255);
@@ -219,6 +253,7 @@ void tryRotate(int distance = -1) {
 		digitalWrite(H2_10, HIGH);
 
 	}
+	stopMove();
 }
 
 void tryMoveRight(int distance = -1) {
@@ -241,6 +276,7 @@ void tryMoveRight(int distance = -1) {
 		updateUltrasonics(false, false, true);
 
 	}
+	stopMove();
 }
 
 
@@ -264,25 +300,125 @@ void tryMoveLeft(int distance = -1) {
 		updateUltrasonics(false, true, false);
 
 	}
+	stopMove();
 }
 
-void stopMove(int distance = -1) {
-	while (frontIsClear && distance != 0) {
-		//stop
-		analogWrite(H1pwm1, 0);
-		analogWrite(H1pwm2, 0);
-		analogWrite(H2pwm1, 0);
-		analogWrite(H2pwm2, 0);
-		digitalWrite(H1_3, LOW);
-		digitalWrite(H1_4, LOW);
-		digitalWrite(H1_5, LOW);
-		digitalWrite(H1_6, LOW);
-		digitalWrite(H2_7, LOW);
-		digitalWrite(H2_8, LOW);
-		digitalWrite(H2_9, LOW);
-		digitalWrite(H2_10, LOW);
+void stopMove() {
+	analogWrite(H1pwm1, 0);
+	analogWrite(H1pwm2, 0);
+	analogWrite(H2pwm1, 0);
+	analogWrite(H2pwm2, 0);
+	digitalWrite(H1_3, LOW);
+	digitalWrite(H1_4, LOW);
+	digitalWrite(H1_5, LOW);
+	digitalWrite(H1_6, LOW);
+	digitalWrite(H2_7, LOW);
+	digitalWrite(H2_8, LOW);
+	digitalWrite(H2_9, LOW);
+	digitalWrite(H2_10, LOW);
+}
 
-	}
+void navigateObstacleField() {
+	if (Enes100.getY() <= 1.5) {
+		tryMoveLeft(1.5-Enes100.getY());
+	} else {
+tryMoveRight(Enes100.getY()-1.5);
+}
+//go to 2.9m
+tryMoveForwards(2.9-Enes100.getX());
+//check if runs into 3 different obstacles and moves to 2.9m
+if (!frontIsClear()) {
+	tryMoveRight(0.5);
+	tryMoveForwards(2.9-Enes100.getX());
+	if(!frontIsClear()) {
+		tryMoveRight(0.5);
+		tryMoveForwards(2.9-Enes100.getX());
+		if(!frontIsClear()) {
+	tryMoveLeft(0.5);
+	tryMoveForwards(2.9-Enes100.getX());
+}
+}
+}
+}
+
+int A = 1; //bottom right
+int B = 2; //top right
+int C = 3; //top left
+int D = 4; //top right
+int prediction = 0;
+void plantSeed (int plot) {
+	moveToPlot(plot, succ);
+	delay(2000); //succ
+	moveToPlot(plot, seed);
+	delay(2000); //seed
+	moveToPlot(plot, rice);
+	delay(2000); //rice
+}
+
+void doMission() {
+	bool hasSeedLeft = true;
+	int transmissions = 0;
+	//check A
+	moveToPlot(A, predict);
+	prediction = Enes100.MLGetPrediction();
+	if (prediction == 1) { //seed
+		Enes100.mission(LOCATION, A); //transmit plot A having plantable substrate
+		transmissions++;
+		if (hasSeedLeft) {
+	plantSeed(A);
+	hasSeedLeft = false;
+}
+}
+//check B
+moveToPlot(B, predict);
+	prediction = Enes100.MLGetPrediction();
+	if (prediction == 1) { //seed
+		Enes100.mission(LOCATION, B); //transmit plot A having plantable substrate
+		transmissions++;
+		if (hasSeedLeft) {
+	plantSeed(B);
+	hasSeedLeft = false;
+}
+}
+//check C
+if (transmissions < 2) {
+moveToPlot(C, predict);
+	prediction = Enes100.MLGetPrediction();
+	if (prediction == 1) { //seed
+		Enes100.mission(LOCATION, C); //transmit plot A having plantable substrate
+		transmissions++;
+		if (hasSeedLeft) {
+	plantSeed(C);
+	hasSeedLeft = false;
+}
+}
+}
+//check D
+if (transmissions < 2) {
+moveToPlot(D, predict);
+	prediction = Enes100.MLGetPrediction();
+	if (prediction == 1) { //seed
+		Enes100.mission(LOCATION, D); //transmit plot A having plantable substrate
+		transmissions++;
+		if (hasSeedLeft) {
+	plantSeed(D);
+	hasSeedLeft = false;
+}
+}
+}
+//reset position for the rest of navigation?
+}
+
+void moveToPlot(int plot, missionTask task) {
+	if (task == predict) {
+	//move so camera is above plot
+} else if (task == succ) {
+	//move so succ pipe is above plot
+} else if (task == seed) {
+	//move so seed dropper is above plot
+} else if (task == rice) {
+	//moves so rice dropper is above plot
+}
 }
 
 void lightOn (bool on) {
@@ -320,7 +456,6 @@ bool startedAtTop = false;
 //move forward to mission site until rover detects site
 tryMoveForwards();
 //check ultrasonic sensor against vision system
-bool withinExpected = false;
 if (startedAtTop) {
 	checkPosition(Y, 0.55+0.083+frontTooClose+roverRadius, marginOfError);
 } else {
@@ -328,14 +463,15 @@ if (startedAtTop) {
 }
 
 /*mission*/
+//doMission();
 delay(1000);
 
 setColor(orange);
 //move away from mission site until X coordinate is 1.2 m
 if(startedAtTop) {
-	tryMoveLeft(1.2);
+	tryMoveLeft(0.65);
 } else {
-	tryMoveRight(1.2);
+	tryMoveRight(0.65);
 }
 //face towards goal area
 tryRotate(0);
@@ -351,14 +487,14 @@ delay(500);
 
 setColor(white);
 //move forward, but make sure not to hit the side (turn red if too close)
-tryMoveForwards();
+tryMoveForwards(2.9-Enes100.getX());
 
 setColor(green);
 	//strafe to center Y against limbo log
-	tryMoveRight(1.6);
+	tryMoveRight(0.4);
 
 	//move into destination zone
-	tryMoveForwards(3.7);
+	tryMoveForwards(3.7-Enes100.getX());
 	
 	//finished!
 	celebrate();
