@@ -1,12 +1,13 @@
 #include <Enes100.h>
 #include <math.h>
-#include <Tank.h>
+
+const int Tx = 10;
+const int Rx = 11;
 
 void setup() {
   Serial.begin(9600);
-  Tank.begin();
   delay(2000);
-  Enes100.begin("Farmers\' Insurance", SEED, 16, 52, 50);
+  Enes100.begin("Farmers\' Insurance", SEED, 218, Tx, Rx);
   delay(2000);
   Enes100.println("Sucessfully connected to the Vision System");
 }
@@ -18,5 +19,6 @@ void loop() {
   Enes100.print(Enes100.getY());
   Enes100.print(" Rot: ");
   Enes100.println(Enes100.getTheta());
+  Enes100.mission(PERCENTAGE, 1); //basically a fancy print function?
   delay(1000);
 }
