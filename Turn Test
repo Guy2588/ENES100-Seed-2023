@@ -1,0 +1,83 @@
+#include <Enes100.h>
+#include <math.h>
+
+//H-bridge
+const int H1pwm1 = 13;
+const int H1pwm2 = 12;
+const int H1_3 = 22;
+const int H1_4 = 23;
+const int H1_5 = 24;
+const int H1_6 = 25;
+
+const int H2pwm1 = 10;
+const int H2pwm2 = 9;
+const int H2_7 = 26;
+const int H2_8 = 27;
+const int H2_9 = 28;
+const int H2_10 = 29;
+
+
+const int Tx = 10;
+const int Rx = 11;
+
+void setup() {
+  Serial.begin(9600);
+  delay(2000);
+  Enes100.begin("Farmers\' Insurance", SEED, 218, Tx, Rx);
+  delay(2000);
+  Enes100.println("Sucessfully connected to the Vision System");
+}
+
+//calculates if the rover is at a rotation within a margin of error
+bool roverAtRot(float rot, float error) {
+  Enes100.println(Enes100.getTheta());
+	return (rot + error > Enes100.getTheta() && rot - error < Enes100.getTheta());
+}
+
+//turns clockwise until the rover is facing a certain angle
+void tryRotate(int theta) {
+	while (!roverAtRot(theta, 0.3)) {
+		//turn right
+		analogWrite(H1pwm1, 255);
+		analogWrite(H1pwm2, 255);
+		analogWrite(H2pwm1, 255);
+		analogWrite(H2pwm2, 255);
+		digitalWrite(H1_3, HIGH);
+		digitalWrite(H1_4, LOW);
+		digitalWrite(H1_5, LOW);
+		digitalWrite(H1_6, HIGH);
+		digitalWrite(H2_7, HIGH);
+		digitalWrite(H2_8, LOW);
+		digitalWrite(H2_9, LOW);
+		digitalWrite(H2_10, HIGH);
+
+	}
+	stopMove();
+}
+
+void stopMove() {
+	analogWrite(H1pwm1, 0);
+	analogWrite(H1pwm2, 0);
+	analogWrite(H2pwm1, 0);
+	analogWrite(H2pwm2, 0);
+	digitalWrite(H1_3, LOW);
+	digitalWrite(H1_4, LOW);
+	digitalWrite(H1_5, LOW);
+	digitalWrite(H1_6, LOW);
+	digitalWrite(H2_7, LOW);
+	digitalWrite(H2_8, LOW);
+	digitalWrite(H2_9, LOW);
+	digitalWrite(H2_10, LOW);
+}
+
+void loop() {
+  Enes100.print("X: ");
+  Enes100.print(Enes100.getX());
+  Enes100.print(" Y: ");
+  Enes100.print(Enes100.getY());
+  Enes100.print(" Rot: ");
+  Enes100.println(Enes100.getTheta());
+  Enes100.println("Will now attempt to rotate...");
+  delay(1000);
+  tryRotate(0);
+}
