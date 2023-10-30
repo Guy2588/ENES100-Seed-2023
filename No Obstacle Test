@@ -1,0 +1,199 @@
+#include <Enes100.h>
+#include <math.h>
+
+//H-bridge
+const int H1pwm1 = 13;
+const int H1pwm2 = 12;
+const int H1_3 = 22;
+const int H1_4 = 23;
+const int H1_5 = 24;
+const int H1_6 = 25;
+
+const int H2pwm1 = 10;
+const int H2pwm2 = 9;
+const int H2_7 = 26;
+const int H2_8 = 27;
+const int H2_9 = 28;
+const int H2_10 = 29;
+
+//ultrasonic sensors
+const int US_front_out = 34;
+const int US_front_in = 35;
+
+//camera
+const int Tx = 10;
+const int Rx = 11;
+
+//other constants
+const float frontTooClose = 20; //in cm
+const float rightTooClose = 20;
+const float leftTooClose = 20;
+const float roverRadius = 10; //distance from center of rotation to any sensor (may need changing)
+const float marginOfError = 5;
+
+//enums
+enum axis {
+	X,
+	Y,
+	rot
+};
+
+//distance variables (in cm)
+long US_front_dist;
+
+void setup() {
+  Serial.begin(9600);
+  delay(2000);
+  Enes100.begin("Farmers\' Insurance", SEED, 218, Tx, Rx);
+  delay(2000);
+  Enes100.println("Sucessfully connected to the Vision System");
+  //setup ultrasonics
+  pinMode(US_front_out, OUTPUT);
+  pinMode(US_front_in, INPUT);
+  //setup h-bridge and motors
+	pinMode(H1pwm1, OUTPUT); //speed for motor 1
+	pinMode(H1pwm2, OUTPUT); //speed for motor 2
+	pinMode(H1_3, OUTPUT);
+	pinMode(H1_4, OUTPUT);
+	pinMode(H1_5, OUTPUT);
+	pinMode(H1_6, OUTPUT);
+	pinMode(H2pwm1, OUTPUT); //speed for motor 3
+	pinMode(H2pwm2, OUTPUT); //speed for motor 4
+	pinMode(H2_7, OUTPUT);
+	pinMode(H2_8, OUTPUT);
+	pinMode(H2_9, OUTPUT);
+	pinMode(H2_10, OUTPUT);
+}
+
+void updateUltrasonics(bool front = true, bool left = true, bool right = true) {
+	if(front) digitalWrite(US_front_out, LOW); //low pulse to ensure clean high pulse
+  delayMicroseconds(5);
+  //send echolocation pulse
+  if(front) digitalWrite(US_front_out, HIGH);
+  delayMicroseconds(10);
+  //turn pulse off
+  if(front) digitalWrite(US_front_out, LOW);
+  
+  //read signal in centimeters
+  if(front) US_front_dist = (pulseIn(US_front_in, HIGH)/2)/29.1;
+}
+
+bool frontIsClear() {
+	if (US_front_dist <= frontTooClose) {
+  	return false;
+  }
+  return true;
+}
+
+bool checkPosition(axis A, float expectedPosition, float error) {
+	bool result = false;
+	if (A =X) {
+	if (Enes100.getX() + error > expectedPosition && Enes100.getX() - error < expectedPosition) {
+  	result = true;
+  }
+  } else if (A =Y) {
+  	if (Enes100.getY() + error > expectedPosition && Enes100.getY() - error < expectedPosition) {
+  	result = true;
+  }
+  } else if (A =rot) {
+  	if (Enes100.getTheta() + error > expectedPosition && Enes100.getTheta() - error < expectedPosition) {
+  	result = true;
+  }
+  }
+  return result;
+}
+
+float endPos[2];
+void calculateEndPos(float distance, float startPos[2]) {
+	//edit endPos
+	endPos[0] = startPos[0] + cos(Enes100.getTheta()) * distance;
+	endPos[1] = startPos[1] + sin(Enes100.getTheta()) * distance;
+}
+
+//calculates if the rover is at a position within a margin of error
+bool roverAtPos(float pos[2], float error) {
+	bool xTrue = (pos[0] + error > Enes100.getX() && pos[0] - error < Enes100.getX());
+	bool yTrue = (pos[1] + error > Enes100.getY() && pos[1] - error < Enes100.getY());
+	return xTrue && yTrue;
+}
+
+//calculates if the rover is at a rotation within a margin of error
+bool roverAtRot(float rot, float error) {
+  Enes100.println(Enes100.getTheta());
+	return (rot + error > Enes100.getTheta() && rot - error < Enes100.getTheta());
+}
+
+//will eventually need to include side ultrasonics for wall collision avoidance
+void tryMoveForwards(float distance = -1) {
+	float initRot = Enes100.getTheta();
+	float startPos[2] = {Enes100.getX(), Enes100.getY()};
+	calculateEndPos(distance, startPos); //this updates variable endPos
+	updateUltrasonics(true, false, false);
+	while (frontIsClear() && !roverAtPos(endPos, 0.10)) {
+		//move forwards
+		analogWrite(H1pwm1, 255);
+		analogWrite(H1pwm2, 255);
+		analogWrite(H2pwm1, 255);
+		analogWrite(H2pwm2, 255);
+		digitalWrite(H1_3, HIGH);
+		digitalWrite(H1_4, LOW);
+		digitalWrite(H1_5, HIGH);
+		digitalWrite(H1_6, LOW);
+		digitalWrite(H2_7, HIGH);
+		digitalWrite(H2_8, LOW);
+		digitalWrite(H2_9, HIGH);
+		digitalWrite(H2_10, LOW);
+    Enes100.println(Enes100.getX());
+		if(initRot != Enes100.getTheta()) {
+      Enes100.println("Rotation discrepancy, correcting");
+    	tryRotate(initRot);
+    }
+  	//update end conditions
+  	updateUltrasonics(true, false, false);		
+  }
+  Enes100.println("Stoping movement");
+  stopMove();
+}
+
+
+//turns clockwise until the rover is facing a certain angle
+void tryRotate(int theta) {
+	while (!roverAtRot(theta, 0.3)) {
+		//turn right
+		analogWrite(H1pwm1, 255);
+		analogWrite(H1pwm2, 255);
+		analogWrite(H2pwm1, 255);
+		analogWrite(H2pwm2, 255);
+		digitalWrite(H1_3, HIGH);
+		digitalWrite(H1_4, LOW);
+		digitalWrite(H1_5, LOW);
+		digitalWrite(H1_6, HIGH);
+		digitalWrite(H2_7, HIGH);
+		digitalWrite(H2_8, LOW);
+		digitalWrite(H2_9, LOW);
+		digitalWrite(H2_10, HIGH);
+
+	}
+	stopMove();
+}
+
+void stopMove() {
+	analogWrite(H1pwm1, 0);
+	analogWrite(H1pwm2, 0);
+	analogWrite(H2pwm1, 0);
+	analogWrite(H2pwm2, 0);
+	digitalWrite(H1_3, LOW);
+	digitalWrite(H1_4, LOW);
+	digitalWrite(H1_5, LOW);
+	digitalWrite(H1_6, LOW);
+	digitalWrite(H2_7, LOW);
+	digitalWrite(H2_8, LOW);
+	digitalWrite(H2_9, LOW);
+	digitalWrite(H2_10, LOW);
+}
+
+void loop() {
+  tryMoveForwards(2.9-Enes100.getX());
+  Enes100.print("Final pos: ");
+  Enes100.println(Enes100.getX());
+}
