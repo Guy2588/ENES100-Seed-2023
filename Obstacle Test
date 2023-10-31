@@ -17,12 +17,12 @@ const int H2_9 = 28;
 const int H2_10 = 29;
 
 //ultrasonic sensors
-const int US_front_out = 34;
-const int US_front_in = 35;
+const int US_front_out = 38;
+const int US_front_in = 39;
 
 //camera
-const int Tx = 10;
-const int Rx = 11;
+const int Tx = 51;
+const int Rx = 52;
 
 //other constants
 const float frontTooClose = 20; //in cm
@@ -44,8 +44,10 @@ long US_front_dist;
 void setup() {
   Serial.begin(9600);
   delay(2000);
-  Enes100.begin("Farmers\' Insurance", SEED, 218, Tx, Rx);
+  Serial.println("Trying to connect to wifi");
+  Enes100.begin("Farmers\' Insurance", SEED, 11, Tx, Rx);
   delay(2000);
+  Serial.println("Begin statement run");
   Enes100.println("Sucessfully connected to the Vision System");
   //setup ultrasonics
   pinMode(US_front_out, OUTPUT);
@@ -141,9 +143,11 @@ void tryMoveForwards(float distance = -1) {
 		digitalWrite(H1_6, LOW);
 		digitalWrite(H2_7, HIGH);
 		digitalWrite(H2_8, LOW);
-		digitalWrite(H2_9, HIGH);
-		digitalWrite(H2_10, LOW);
-		if(initRot != Enes100.getTheta()) {
+		digitalWrite(H2_9, LOW);
+		digitalWrite(H2_10, HIGH);
+		if(!roverAtRot(initRot, 0.3)) {
+      stopMove();
+      Enes100.println("Trying to reorient");
     	tryRotate(initRot);
     }
   	//update end conditions
@@ -192,5 +196,6 @@ void stopMove() {
 void loop() {
   tryMoveForwards();
   Enes100.print("Obstacle detected?: ");
-  Enes100.println(frontIsClear());
+  Enes100.println(!frontIsClear());
+  Enes100.println(US_front_dist);
 }
