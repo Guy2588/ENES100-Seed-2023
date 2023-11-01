@@ -36,7 +36,7 @@ bool roverAtRot(float rot, float error) {
 
 //turns clockwise until the rover is facing a certain angle
 void tryRotate(int theta) {
-	while (!roverAtRot(theta, 0.1)) {
+	while (!roverAtRot(theta, 0.2)) {
 		//turn right
 		analogWrite(H1pwm1, 255);
 		analogWrite(H1pwm2, 255);
