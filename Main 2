@@ -1,0 +1,289 @@
+#include <Enes100.h>
+#include <math.h>
+
+//H-bridge
+//left side
+//left back
+const int HLpwmB = 13;
+const int HL_B_CW = 24; //set true for clockwise
+const int HL_B_CCW = 25; //set true for counterclockwise
+//left front
+const int HLpwmF = 12;
+const int HL_F_CW = 22;
+const int HL_F_CCW = 23;
+
+//right side
+//right back
+const int HRpwmB = 10;
+const int HR_B_CW = 28;
+const int HR_B_CCW = 29;
+//right front
+const int HRpwmF = 9;
+const int HR_F_CW = 27;
+const int HR_F_CCW = 26;
+
+//ultrasonic sensors
+const int US_front_trig = 38;
+const int US_front_echo = 39;
+const int US_left_trig = 36;
+const int US_left_echo = 37;
+const int US_right_trig = 35;
+const int US_right_echo = 34;
+
+//camera
+const int Cam_Tx = 51;
+const int Cam_Rx = 52;
+
+
+//enums
+enum motor{
+  LF, //left front
+  LB,
+  RF,
+  RB
+};
+enum axis {
+	X,
+	Y,
+	rot
+};
+
+
+//other constants
+const float frontTooClose = 20; //in cm
+const float rightTooClose = 20;
+const float leftTooClose = 20;
+const float roverRadius = 10; //distance from center of rotation to any sensor (may need changing)
+const float marginOfError = 5;
+
+//distance variables (in cm)
+float US_front_dist;
+float US_left_dist;
+float US_right_dist;
+int count = 0;
+
+
+void setup() {
+  Serial.begin(9600);
+  Enes100.begin("Farmers\' Insurance", SEED, 11, Cam_Tx, Cam_Rx);
+  Enes100.println("Farmers\' Insurance successfully connected to vision system!");
+  //setup h-bridge and motors
+  //left side
+	pinMode(HLpwmB, OUTPUT); //speed for motor 1
+	pinMode(HLpwmF, OUTPUT); //speed for motor 2
+	pinMode(HL_B_CW, OUTPUT);
+	pinMode(HL_B_CCW, OUTPUT);
+	pinMode(HL_F_CW, OUTPUT);
+	pinMode(HL_F_CCW, OUTPUT);
+  //right side
+	pinMode(HRpwmB, OUTPUT); //speed for motor 3
+	pinMode(HRpwmF, OUTPUT); //speed for motor 4
+	pinMode(HR_B_CW, OUTPUT);
+	pinMode(HR_B_CCW, OUTPUT);
+	pinMode(HR_F_CW, OUTPUT);
+	pinMode(HR_F_CCW, OUTPUT);
+  //setup ultrasonics
+  pinMode(US_front_trig, OUTPUT);
+  pinMode(US_front_echo, INPUT);
+  pinMode(US_left_trig, OUTPUT);
+  pinMode(US_left_echo, INPUT);
+  pinMode(US_right_trig, OUTPUT);
+  pinMode(US_right_echo, INPUT);
+}
+
+//sets the specified motor to a speed and direction
+void setMotor(motor motor, int speed, bool CW) {
+  //set motor speed
+  if (motor == LF) {
+    analogWrite(HLpwmF, speed);
+  } else if (motor == LB) {
+    analogWrite(HLpwmB, speed);
+  } else if (motor == RF) {
+    analogWrite(HRpwmF, speed);
+  } else if (motor == RB) {
+    analogWrite(HRpwmB, speed);
+  }
+  //set motor direction
+  if (motor == LF) {
+    digitalWrite(HL_F_CW, CW? HIGH:LOW);
+	  digitalWrite(HL_F_CCW, CW? LOW:HIGH);
+  } else if (motor == LB) {
+    digitalWrite(HL_B_CW, CW? HIGH:LOW);
+	  digitalWrite(HL_B_CCW, CW? LOW:HIGH);
+  } else if (motor == RF) {
+    digitalWrite(HR_F_CW, CW? HIGH:LOW);
+	  digitalWrite(HR_F_CCW, CW? LOW:HIGH);
+  } else if (motor == RB) {
+    digitalWrite(HR_B_CW, CW? HIGH:LOW);
+	  digitalWrite(HR_B_CCW, CW? LOW:HIGH);
+  }
+}
+
+//stops all motor movement
+void stopMove() {
+  //set speed to 0
+	analogWrite(HLpwmF, 0);
+  analogWrite(HLpwmB, 0);
+  analogWrite(HRpwmF, 0);
+  analogWrite(HRpwmB, 0);
+  //set direction to 0
+  digitalWrite(HL_F_CW, LOW);
+  digitalWrite(HL_F_CCW, LOW);
+  digitalWrite(HL_B_CW, LOW);
+  digitalWrite(HL_B_CCW, LOW);
+  digitalWrite(HR_F_CW, LOW);
+  digitalWrite(HR_F_CCW, LOW);
+  digitalWrite(HR_B_CW, LOW);
+  digitalWrite(HR_B_CCW, LOW);
+}
+
+//updates running ultrasonic values, but only the ones you want, for whatever reason
+void updateUltrasonics(bool front = true, bool left = true, bool right = true) {
+	if(front) digitalWrite(US_front_trig, LOW); //low pulse to ensure clean high pulse
+	if(left) digitalWrite(US_left_trig, LOW);
+	if(right) digitalWrite(US_right_trig, LOW);
+  delayMicroseconds(5);
+  //send echolocation pulse
+  if(front) digitalWrite(US_front_trig, HIGH);
+  if(left) digitalWrite(US_left_trig, HIGH);
+  if(right) digitalWrite(US_right_trig, HIGH);
+  delayMicroseconds(10);
+  //turn pulse off
+  if(front) digitalWrite(US_front_trig, LOW);
+  if(left) digitalWrite(US_left_trig, LOW);
+  if(right) digitalWrite(US_right_trig, LOW);
+
+  //read signal in centimeters
+  if(front) US_front_dist = (pulseIn(US_front_echo, HIGH)/2)/29.1;
+  if(left) US_left_dist = (pulseIn(US_left_echo, HIGH)/2)/29.1;
+  if(right) US_right_dist = (pulseIn(US_right_echo, HIGH)/2)/29.1;
+}
+
+
+//checks if the front ultrasonic detects something within a distance
+bool frontIsClear(int distance = frontTooClose) {
+	if (US_front_dist <= distance) {
+    count++; //increments # of times sensor said too close
+    if (count >= 3) {
+      return false; //if the sensor said too close 3 times in a row, then its too close
+    } else {
+      return true; //otherwise, its an errornious value and should be ignored
+    }
+  }
+  count = 0;
+  return true;
+}
+
+//checks if the left ultrasonic detects something within a distance
+bool leftIsClear(int distance = leftTooClose) {
+	if (US_left_dist <= distance) {
+    count++; //increments # of times sensor said too close
+    if (count >= 3) {
+      return false; //if the sensor said too close 3 times in a row, then its too close
+    } else {
+      return true; //otherwise, its an errornious value and should be ignored
+    }
+  }
+  count = 0;
+  return true;
+}
+
+//checks if the right ultrasonic detects something within a distance
+bool rightIsClear(int distance = rightTooClose) {
+	if (US_right_dist <= distance) {
+    count++; //increments # of times sensor said too close
+    if (count >= 3) {
+      return false; //if the sensor said too close 3 times in a row, then its too close
+    } else {
+      return true; //otherwise, its an errornious value and should be ignored
+    }
+  }
+  count = 0;
+  return true;
+}
+
+//moves rover forwards until past location in axis (made assuming rover will always move in the positive axial direction), more functionality to come when needed
+void moveForward(float location, axis axis = rot) {
+  updateUltrasonics(true, false, false);
+  while(frontIsClear() && (axis == rot || (axis == X && Enes100.getX() <= location) || (axis == Y && Enes100.getY() <= location))) {
+    setMotor(LF, 255, true);
+    setMotor(RF, 255, false);
+    setMotor(LB, 255, true);
+    setMotor(RB, 255, false);
+    //update end conditions
+    updateUltrasonics(true, false, false);
+  }
+  stopMove();
+}
+
+//strafes rover left
+void moveLeft() {
+  updateUltrasonics(false, true, false);
+  while(leftIsClear()) {
+    setMotor(LF, 255, false);
+    setMotor(RF, 255, false);
+    setMotor(LB, 255, true);
+    setMotor(RB, 255, true);
+    //update end conditions
+    updateUltrasonics(false, true, false);
+  }
+  stopMove();
+}
+
+//strafes rover right
+void moveRight() {
+  updateUltrasonics(false, false, true);
+  while(rightIsClear()) {
+    setMotor(LF, 255, true);
+    setMotor(RF, 255, true);
+    setMotor(LB, 255, false);
+    setMotor(RB, 255, false);
+    //update end conditions
+    updateUltrasonics(false, false, true);
+  }
+  stopMove();
+}
+
+//moves rover backwards about a certain distance in cm, no obstacle sensing
+void reverse(float distance) {
+  setMotor(LF, 255, false);
+  setMotor(RF, 255, true);
+  setMotor(LB, 255, false);
+  setMotor(RB, 255, true);
+  delay(distance*50);
+  stopMove();
+}
+
+//turns rover left a certain number of degrees, 90 as default, based on timing
+void turnLeft(int degrees = 90) {
+  setMotor(LF, 255, false);
+  setMotor(RF, 255, false);
+  setMotor(LB, 255, false);
+  setMotor(RB, 255, false);
+  delay(degrees*10);
+  stopMove();
+}
+
+//turns rover right a certain number of degrees, 90 as default, based on timing
+void turnRight(int degrees = 90) {
+  setMotor(LF, 255, true);
+  setMotor(RF, 255, true);
+  setMotor(LB, 255, true);
+  setMotor(RB, 255, true);
+  delay(degrees*10);
+  stopMove();
+}
+
+void loop () {
+  moveForward(1, Y);
+  turnRight();
+  moveForward(2.9, X);
+  if (!frontIsClear()) {
+    moveLeft();
+    if(!frontIsClear() && !leftIsClear()) {
+      moveRight();
+    }
+  }
+  moveForward(2.9, X);
+  delay(5000);
+}
