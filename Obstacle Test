@@ -55,6 +55,7 @@ const float rightTooClose = 20;
 const float leftTooClose = 20;
 const float roverRadius = 10; //distance from center of rotation to any sensor (may need changing)
 const float marginOfError = 5;
+const int US_count_thresh = 4;
 
 //distance variables (in cm)
 float US_front_dist;
@@ -161,10 +162,14 @@ void updateUltrasonics(bool front = true, bool left = true, bool right = true) {
 
 
 //checks if the front ultrasonic detects something within a distance
-bool frontIsClear(int distance = frontTooClose) {
+bool frontIsClear(bool oneOff = false, int distance = frontTooClose) {
+  if (oneOff) {
+    count = US_count_thresh-1;
+  }
 	if (US_front_dist <= distance) {
     count++; //increments # of times sensor said too close
-    if (count >= 3) {
+    if (count >= US_count_thresh) {
+      count = 0;
       return false; //if the sensor said too close 3 times in a row, then its too close
     } else {
       return true; //otherwise, its an errornious value and should be ignored
@@ -175,10 +180,14 @@ bool frontIsClear(int distance = frontTooClose) {
 }
 
 //checks if the left ultrasonic detects something within a distance
-bool leftIsClear(int distance = leftTooClose) {
+bool leftIsClear(bool oneOff = false, int distance = leftTooClose) {
+  if (oneOff) {
+    count = US_count_thresh - 1;
+  }
 	if (US_left_dist <= distance) {
     count++; //increments # of times sensor said too close
-    if (count >= 3) {
+    if (count >= US_count_thresh) {
+      count = 0;
       return false; //if the sensor said too close 3 times in a row, then its too close
     } else {
       return true; //otherwise, its an errornious value and should be ignored
@@ -189,10 +198,14 @@ bool leftIsClear(int distance = leftTooClose) {
 }
 
 //checks if the right ultrasonic detects something within a distance
-bool rightIsClear(int distance = rightTooClose) {
+bool rightIsClear(bool oneOff = false, int distance = rightTooClose) {
+  if (oneOff) {
+    count = US_count_thresh-1;
+  }
 	if (US_right_dist <= distance) {
     count++; //increments # of times sensor said too close
-    if (count >= 3) {
+    if (count >= US_count_thresh) {
+      count = 0;
       return false; //if the sensor said too close 3 times in a row, then its too close
     } else {
       return true; //otherwise, its an errornious value and should be ignored
@@ -202,10 +215,10 @@ bool rightIsClear(int distance = rightTooClose) {
   return true;
 }
 
-//moves rover forwards until past location in axis (made assuming rover will always move in the positive axial direction), more functionality to come when needed
-void moveForward(float location = -1, axis axis = rot) {
+//moves rover forwards until past location (m) in axis (made assuming rover will always move in the positive axial direction), more functionality to come when needed
+void moveForward(float location = -1, axis axis = rot) { //subtract some amount from location to account for wifi delay (about 10 cm)
   updateUltrasonics(true, false, false);
-  while(frontIsClear() && (axis == rot || (axis == X && Enes100.getX() >= location) || (axis == Y && Enes100.getY() >= location))) {
+  while(frontIsClear() && (axis == rot || (axis == X && Enes100.getX() <= location-0.1) || (axis == Y && Enes100.getY() <= location-0.1))) {
     setMotor(LF, 255, true);
     setMotor(RF, 255, false);
     setMotor(LB, 255, true);
@@ -216,10 +229,10 @@ void moveForward(float location = -1, axis axis = rot) {
   stopMove();
 }
 
-//strafes rover left
-void moveLeft() {
+//strafes rover left until past location (m) in axis (made assuming rover will always move in the positive axial direction), more functionality to come when needed
+void moveLeft(float location = -1, axis axis = rot) { //subtract some amount from location to account for wifi delay (about 10 cm)
   updateUltrasonics(false, true, false);
-  while(leftIsClear()) {
+  while(leftIsClear() && (axis == rot || (axis == X && Enes100.getX() <= location-0.1) || (axis == Y && Enes100.getY() <= location-0.1))) {
     setMotor(LF, 255, false);
     setMotor(RF, 255, false);
     setMotor(LB, 255, true);
@@ -230,10 +243,10 @@ void moveLeft() {
   stopMove();
 }
 
-//strafes rover right
-void moveRight() {
+//strafes rover right until past location (m) in axis (made assuming rover will always move in the negative axial direction), more functionality to come when needed
+void moveRight(float location = -1, axis axis = rot) { //subtract some amount from location to account for wifi delay (about 10 cm)
   updateUltrasonics(false, false, true);
-  while(rightIsClear()) {
+  while(rightIsClear() && (axis == rot || (axis == X && Enes100.getX() >= location+0.1) || (axis == Y && Enes100.getY() >= location+0.1))) {
     setMotor(LF, 255, true);
     setMotor(RF, 255, true);
     setMotor(LB, 255, false);
@@ -274,16 +287,35 @@ void turnRight(int degrees = 90) {
   stopMove();
 }
 
+//tries to align rover rotation to goal rotation (degrees) by checking itself with the vision system
+void tryFixRotation(float goalRot) {
+  float currentDeg = Enes100.getTheta() * 57296/1000;
+  if (currentDeg > goalRot) {
+    turnRight(currentDeg-goalRot);
+  } else if (currentDeg < goalRot) {
+    turnLeft(goalRot-currentDeg);
+  }
+}
+
 void loop () {
   moveForward(1, Y);
-  turnRight();
+  turnRight(92);
+  //pause, check rotation, and fix (it rotates less on the mat than on the floor)
+  //preloads theta value into cache
+  Enes100.getTheta();
+  delay(1000);
+  tryFixRotation(0);
   moveForward(2.9, X);
-  if (!frontIsClear()) {
+  //called to relevantize following conditional
+  updateUltrasonics();
+  if (!frontIsClear(true)) { //checking ultrasonics with oneOff is inherently less reliable, increasing count values in ultrasonics may help
     moveLeft();
-    if(!frontIsClear() && !leftIsClear()) {
+    updateUltrasonics();
+    if(!frontIsClear(true) && !leftIsClear(true)) {
       moveRight();
     }
   }
+  tryFixRotation(0); //should I preload theta here?
   moveForward(2.9, X);
   delay(5000);
 }
