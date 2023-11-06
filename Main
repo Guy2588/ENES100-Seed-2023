@@ -1,47 +1,53 @@
-//Add libraries
 #include <Enes100.h>
 #include <math.h>
 
-//Initialize pins
-
 //H-bridge
-const int H1pwm1 = 13;
-const int H1pwm2 = 12;
-const int H1_3 = 22;
-const int H1_4 = 23;
-const int H1_5 = 24;
-const int H1_6 = 25;
+//left side
+//left back
+const int HLpwmB = 13;
+const int HL_B_CW = 24; //set true for clockwise
+const int HL_B_CCW = 25; //set true for counterclockwise
+//left front
+const int HLpwmF = 12;
+const int HL_F_CW = 22;
+const int HL_F_CCW = 23;
 
-const int H2pwm1 = 10;
-const int H2pwm2 = 9;
-const int H2_7 = 26;
-const int H2_8 = 27;
-const int H2_9 = 28;
-const int H2_10 = 29;
-
-//servos (all pins pwm)
-const int S1 = 4;
-const int S2 = 3;
+//right side
+//right back
+const int HRpwmB = 10;
+const int HR_B_CW = 28;
+const int HR_B_CCW = 29;
+//right front
+const int HRpwmF = 9;
+const int HR_F_CW = 27;
+const int HR_F_CCW = 26;
 
 //ultrasonic sensors
-const int US_front_out = 34;
-const int US_front_in = 35;
-const int US_left_out = 36;
-const int US_left_in = 37;
-const int US_right_out = 38;
-const int US_right_in = 39;
-
-//MOSFET (transistor for vacuum servo)
-const int MOSFET = 45;
-
-//ringlight
-const int Light_1 = 46;
-const int Light_2 = 47;
+const int US_front_trig = 38;
+const int US_front_echo = 39;
+const int US_left_trig = 36;
+const int US_left_echo = 37;
+const int US_right_trig = 35;
+const int US_right_echo = 34;
 
 //camera
-const int Cam_pwr = 50; //if plugged into arduino, ground can be rewired elsewhere
 const int Cam_Tx = 51;
 const int Cam_Rx = 52;
+
+
+//enums
+enum motor{
+  LF, //left front
+  LB,
+  RF,
+  RB
+};
+enum axis {
+	X,
+	Y,
+	rot
+};
+
 
 //other constants
 const float frontTooClose = 20; //in cm
@@ -49,454 +55,303 @@ const float rightTooClose = 20;
 const float leftTooClose = 20;
 const float roverRadius = 10; //distance from center of rotation to any sensor (may need changing)
 const float marginOfError = 5;
-const int ArucoMarkerID = 3;
-
-//enums
-enum axis {
-	X,
-	Y,
-	rot
-};
-enum color {
-	white,
-	blue,
-	orange,
-	pink,
-	green,
-	red
-};
-enum missionTask{
-	predict,
-	succ,
-	seed,
-	rice
-};
-
-
-//running time in ticks
-unsigned int ticks = 0;
+const int US_count_thresh = 4;
 
 //distance variables (in cm)
-long US_front_dist;
-long US_left_dist;
-long US_right_dist;
-
+float US_front_dist;
+float US_left_dist;
+float US_right_dist;
+int count = 0;
 
 
 void setup() {
-	Serial.begin(9600);
-	//setup light
-	pinMode(Light_1, OUTPUT);
-	pinMode(Light_2, OUTPUT);
-	lightOn(true);
-	setColor(white);
-	//setup ultrasonics
-pinMode(US_front_out, OUTPUT);
-pinMode(US_front_in, INPUT);
-pinMode(US_left_out, OUTPUT);
-pinMode(US_left_in, INPUT);
-pinMode(US_right_out, OUTPUT);
-pinMode(US_right_in, INPUT);
-//setup vision system
-delay(2000);
-Enes100.begin("Farmers\' Insurance", SEED, ArucoMarkerID, Cam_Tx, Cam_Rx);
-delay(2000);
-//setup h-bridge and motors
-	pinMode(H1pwm1, OUTPUT); //speed for motor 1
-	pinMode(H1pwm2, OUTPUT); //speed for motor 2
-	pinMode(H1_3, OUTPUT);
-	pinMode(H1_4, OUTPUT);
-	pinMode(H1_5, OUTPUT);
-	pinMode(H1_6, OUTPUT);
-	pinMode(H2pwm1, OUTPUT); //speed for motor 3
-	pinMode(H2pwm2, OUTPUT); //speed for motor 4
-	pinMode(H2_7, OUTPUT);
-	pinMode(H2_8, OUTPUT);
-	pinMode(H2_9, OUTPUT);
-	pinMode(H2_10, OUTPUT);
-	//finished setup!
-	setColor(green);
+  Serial.begin(9600);
+  Enes100.begin("Farmers\' Insurance", SEED, 11, Cam_Tx, Cam_Rx);
+  Enes100.println("Farmers\' Insurance successfully connected to vision system!");
+  //setup h-bridge and motors
+  //left side
+	pinMode(HLpwmB, OUTPUT); //speed for motor 1
+	pinMode(HLpwmF, OUTPUT); //speed for motor 2
+	pinMode(HL_B_CW, OUTPUT);
+	pinMode(HL_B_CCW, OUTPUT);
+	pinMode(HL_F_CW, OUTPUT);
+	pinMode(HL_F_CCW, OUTPUT);
+  //right side
+	pinMode(HRpwmB, OUTPUT); //speed for motor 3
+	pinMode(HRpwmF, OUTPUT); //speed for motor 4
+	pinMode(HR_B_CW, OUTPUT);
+	pinMode(HR_B_CCW, OUTPUT);
+	pinMode(HR_F_CW, OUTPUT);
+	pinMode(HR_F_CCW, OUTPUT);
+  //setup ultrasonics
+  pinMode(US_front_trig, OUTPUT);
+  pinMode(US_front_echo, INPUT);
+  pinMode(US_left_trig, OUTPUT);
+  pinMode(US_left_echo, INPUT);
+  pinMode(US_right_trig, OUTPUT);
+  pinMode(US_right_echo, INPUT);
 }
 
-void updateUltrasonics(bool front = true, bool left = true, bool right = true) {
-	if(front) digitalWrite(US_front_out, LOW); //low pulse to ensure clean high pulse
-	if(left) digitalWrite(US_left_out, LOW);
-	if(right) digitalWrite(US_right_out, LOW);
-delayMicroseconds(5);
-//send echolocation pulse
-if(front) digitalWrite(US_front_out, HIGH);
-if(left) digitalWrite(US_left_out, HIGH);
-if(right) digitalWrite(US_right_out, HIGH);
-delayMicroseconds(10);
-//turn pulse off
-if(front) digitalWrite(US_front_out, LOW);
-if(left) digitalWrite(US_left_out, LOW);
-if(right) digitalWrite(US_right_out, LOW);
-
-//read signal in centimeters
-if(front) US_front_dist = (pulseIn(US_front_in, HIGH)/2)/29.1;
-if(left) US_left_dist = (pulseIn(US_left_in, HIGH)/2)/29.1;
-if(right) US_right_dist = (pulseIn(US_right_in, HIGH)/2)/29.1;
+//sets the specified motor to a speed and direction
+void setMotor(motor motor, int speed, bool CW) {
+  //set motor speed
+  if (motor == LF) {
+    analogWrite(HLpwmF, speed);
+  } else if (motor == LB) {
+    analogWrite(HLpwmB, speed);
+  } else if (motor == RF) {
+    analogWrite(HRpwmF, speed);
+  } else if (motor == RB) {
+    analogWrite(HRpwmB, speed);
+  }
+  //set motor direction
+  if (motor == LF) {
+    digitalWrite(HL_F_CW, CW? HIGH:LOW);
+	  digitalWrite(HL_F_CCW, CW? LOW:HIGH);
+  } else if (motor == LB) {
+    digitalWrite(HL_B_CW, CW? HIGH:LOW);
+	  digitalWrite(HL_B_CCW, CW? LOW:HIGH);
+  } else if (motor == RF) {
+    digitalWrite(HR_F_CW, CW? HIGH:LOW);
+	  digitalWrite(HR_F_CCW, CW? LOW:HIGH);
+  } else if (motor == RB) {
+    digitalWrite(HR_B_CW, CW? HIGH:LOW);
+	  digitalWrite(HR_B_CCW, CW? LOW:HIGH);
+  }
 }
 
-
-bool frontIsClear() {
-	if (US_front_dist <= frontTooClose) {
-	return false;
-}
-return true;
-}
-
-bool rightIsClear() {
-	if (US_right_dist <= rightTooClose) {
-	return false;
-}
-return true;
-}
-
-bool leftIsClear() {
-	if (US_left_dist <= leftTooClose) {
-	return false;
-}
-return true;
-}
-
-bool checkPosition(axis A, float expectedPosition, float error) {
-	setColor(blue);
-	bool result = false;
-	if (A =X) {
-	if (Enes100.getX() + error > expectedPosition && Enes100.getX() - error < expectedPosition) {
-	result = true;
-}
-} else if (A =Y) {
-	if (Enes100.getY() + error > expectedPosition && Enes100.getY() - error < expectedPosition) {
-	result = true;
-}
-} else if (A =rot) {
-	if (Enes100.getTheta() + error > expectedPosition && Enes100.getTheta() - error < expectedPosition) {
-	result = true;
-}
-}
-if (result) {
-	setColor(green);
-} else {
-	setColor(red);
-}
-return result;
-}
-
-float endPos[2];
-void calculateEndPos(float distance, float startPos[2]) {
-	//edit endPos
-	endPos[0] = startPos[0] + cos(Enes100.getTheta()) * distance;
-	endPos[1] = startPos[1] + sin(Enes100.getTheta()) * distance;
-}
-
-//calculates if the rover is at a position within a margin of error
-bool roverAtPos(float pos[2], float error) {
-	bool xTrue = (pos[0] + error > Enes100.getX() && pos[0] - error < Enes100.getX());
-	bool yTrue = (pos[1] + error > Enes100.getY() && pos[1] - error < Enes100.getY());
-	return xTrue && yTrue;
-}
-
-//calculates if the rover is at a rotation within a margin of error
-bool roverAtRot(float rot, float error) {
-	return (rot + error > Enes100.getTheta() && rot - error < Enes100.getTheta());
-}
-
-//will eventually need to include side ultrasonics for wall collision avoidance
-void tryMoveForwards(float distance = -1) {
-	float initRot = Enes100.getTheta();
-	float startPos[2] = {Enes100.getX(), Enes100.getY()};
-	calculateEndPos(distance, startPos); //this updates variable endPos
-	updateUltrasonics(true, false, false);
-	while (frontIsClear() && !roverAtPos(endPos, 0.10)) {
-		//move forwards
-		analogWrite(H1pwm1, 255);
-		analogWrite(H1pwm2, 255);
-		analogWrite(H2pwm1, 255);
-		analogWrite(H2pwm2, 255);
-		digitalWrite(H1_3, HIGH);
-		digitalWrite(H1_4, LOW);
-		digitalWrite(H1_5, HIGH);
-		digitalWrite(H1_6, LOW);
-		digitalWrite(H2_7, HIGH);
-		digitalWrite(H2_8, LOW);
-		digitalWrite(H2_9, HIGH);
-		digitalWrite(H2_10, LOW);
-		if(initRot != Enes100.getTheta()) {
-	tryRotate(initRot);
-}
-		//update end conditions
-		updateUltrasonics(true, false, false);		
-}
-if(!frontIsClear()) {setColor(red);}
-else {setColor(green);}
-stopMove();
-}
-
-//turns clockwise until the rover is facing a certain angle
-void tryRotate(int distance) {
-	while (!roverAtRot(distance, 0.3)) {
-		//turn right
-		analogWrite(H1pwm1, 255);
-		analogWrite(H1pwm2, 255);
-		analogWrite(H2pwm1, 255);
-		analogWrite(H2pwm2, 255);
-		digitalWrite(H1_3, HIGH);
-		digitalWrite(H1_4, LOW);
-		digitalWrite(H1_5, LOW);
-		digitalWrite(H1_6, HIGH);
-		digitalWrite(H2_7, HIGH);
-		digitalWrite(H2_8, LOW);
-		digitalWrite(H2_9, LOW);
-		digitalWrite(H2_10, HIGH);
-
-	}
-	stopMove();
-}
-
-void tryMoveRight(int distance = -1) {
-	updateUltrasonics(false, false, true);
-	while (rightIsClear && distance != 0) {
-		//move right
-		analogWrite(H1pwm1, 255);
-		analogWrite(H1pwm2, 255);
-		analogWrite(H2pwm1, 255);
-		analogWrite(H2pwm2, 255);
-		digitalWrite(H1_3, HIGH);
-		digitalWrite(H1_4, LOW);
-		digitalWrite(H1_5, LOW);
-		digitalWrite(H1_6, HIGH);
-		digitalWrite(H2_7, LOW);
-		digitalWrite(H2_8, HIGH);
-		digitalWrite(H2_9, HIGH);
-		digitalWrite(H2_10, LOW);
-		//update end conditions
-		updateUltrasonics(false, false, true);
-
-	}
-	stopMove();
-}
-
-
-void tryMoveLeft(int distance = -1) {
-	updateUltrasonics(false, true, false);
-	while (leftIsClear && distance != 0) {
-		//move left
-		analogWrite(H1pwm1, 255);
-		analogWrite(H1pwm2, 255);
-		analogWrite(H2pwm1, 255);
-		analogWrite(H2pwm2, 255);
-		digitalWrite(H1_3, LOW);
-		digitalWrite(H1_4, HIGH);
-		digitalWrite(H1_5, HIGH);
-		digitalWrite(H1_6, LOW);
-		digitalWrite(H2_7, HIGH);
-		digitalWrite(H2_8, LOW);
-		digitalWrite(H2_9, LOW);
-		digitalWrite(H2_10, HIGH);
-		//update end conditions
-		updateUltrasonics(false, true, false);
-
-	}
-	stopMove();
-}
-
+//stops all motor movement
 void stopMove() {
-	analogWrite(H1pwm1, 0);
-	analogWrite(H1pwm2, 0);
-	analogWrite(H2pwm1, 0);
-	analogWrite(H2pwm2, 0);
-	digitalWrite(H1_3, LOW);
-	digitalWrite(H1_4, LOW);
-	digitalWrite(H1_5, LOW);
-	digitalWrite(H1_6, LOW);
-	digitalWrite(H2_7, LOW);
-	digitalWrite(H2_8, LOW);
-	digitalWrite(H2_9, LOW);
-	digitalWrite(H2_10, LOW);
+  //set speed to 0
+	analogWrite(HLpwmF, 0);
+  analogWrite(HLpwmB, 0);
+  analogWrite(HRpwmF, 0);
+  analogWrite(HRpwmB, 0);
+  //set direction to 0
+  digitalWrite(HL_F_CW, LOW);
+  digitalWrite(HL_F_CCW, LOW);
+  digitalWrite(HL_B_CW, LOW);
+  digitalWrite(HL_B_CCW, LOW);
+  digitalWrite(HR_F_CW, LOW);
+  digitalWrite(HR_F_CCW, LOW);
+  digitalWrite(HR_B_CW, LOW);
+  digitalWrite(HR_B_CCW, LOW);
 }
 
-void navigateObstacleField() {
-	if (Enes100.getY() <= 1.5) {
-		tryMoveLeft(1.5-Enes100.getY());
-	} else {
-tryMoveRight(Enes100.getY()-1.5);
-}
-//go to 2.9m
-tryMoveForwards(2.9-Enes100.getX());
-//check if runs into 3 different obstacles and moves to 2.9m
-if (!frontIsClear()) {
-	tryMoveRight(0.5);
-	tryMoveForwards(2.9-Enes100.getX());
-	if(!frontIsClear()) {
-		tryMoveRight(0.5);
-		tryMoveForwards(2.9-Enes100.getX());
-		if(!frontIsClear()) {
-	tryMoveLeft(0.5);
-	tryMoveForwards(2.9-Enes100.getX());
-}
-}
-}
+//updates running ultrasonic values, but only the ones you want, for whatever reason
+void updateUltrasonics(bool front = true, bool left = true, bool right = true) {
+	if(front) digitalWrite(US_front_trig, LOW); //low pulse to ensure clean high pulse
+	if(left) digitalWrite(US_left_trig, LOW);
+	if(right) digitalWrite(US_right_trig, LOW);
+  delayMicroseconds(5);
+  //send echolocation pulse
+  if(front) digitalWrite(US_front_trig, HIGH);
+  if(left) digitalWrite(US_left_trig, HIGH);
+  if(right) digitalWrite(US_right_trig, HIGH);
+  delayMicroseconds(10);
+  //turn pulse off
+  if(front) digitalWrite(US_front_trig, LOW);
+  if(left) digitalWrite(US_left_trig, LOW);
+  if(right) digitalWrite(US_right_trig, LOW);
+
+  //read signal in centimeters
+  if(front) US_front_dist = (pulseIn(US_front_echo, HIGH)/2)/29.1;
+  if(left) US_left_dist = (pulseIn(US_left_echo, HIGH)/2)/29.1;
+  if(right) US_right_dist = (pulseIn(US_right_echo, HIGH)/2)/29.1;
 }
 
-int A = 1; //bottom right
-int B = 2; //top right
-int C = 3; //top left
-int D = 4; //top right
-int prediction = 0;
-void plantSeed (int plot) {
-	moveToPlot(plot, succ);
-	delay(2000); //succ
-	moveToPlot(plot, seed);
-	delay(2000); //seed
-	moveToPlot(plot, rice);
-	delay(2000); //rice
+
+//checks if the front ultrasonic detects something within a distance
+bool frontIsClear(bool oneOff = false, int distance = frontTooClose) {
+  if (oneOff) {
+    count = US_count_thresh-1;
+  }
+	if (US_front_dist <= distance) {
+    count++; //increments # of times sensor said too close
+    if (count >= US_count_thresh) {
+      count = 0;
+      return false; //if the sensor said too close 3 times in a row, then its too close
+    } else {
+      return true; //otherwise, its an errornious value and should be ignored
+    }
+  }
+  count = 0;
+  return true;
 }
 
-void doMission() {
-	bool hasSeedLeft = true;
-	int transmissions = 0;
-	//check A
-	moveToPlot(A, predict);
-	prediction = Enes100.MLGetPrediction();
-	if (prediction == 1) { //seed
-		Enes100.mission(LOCATION, A); //transmit plot A having plantable substrate
-		transmissions++;
-		if (hasSeedLeft) {
-	plantSeed(A);
-	hasSeedLeft = false;
-}
-}
-//check B
-moveToPlot(B, predict);
-	prediction = Enes100.MLGetPrediction();
-	if (prediction == 1) { //seed
-		Enes100.mission(LOCATION, B); //transmit plot A having plantable substrate
-		transmissions++;
-		if (hasSeedLeft) {
-	plantSeed(B);
-	hasSeedLeft = false;
-}
-}
-//check C
-if (transmissions < 2) {
-moveToPlot(C, predict);
-	prediction = Enes100.MLGetPrediction();
-	if (prediction == 1) { //seed
-		Enes100.mission(LOCATION, C); //transmit plot A having plantable substrate
-		transmissions++;
-		if (hasSeedLeft) {
-	plantSeed(C);
-	hasSeedLeft = false;
-}
-}
-}
-//check D
-if (transmissions < 2) {
-moveToPlot(D, predict);
-	prediction = Enes100.MLGetPrediction();
-	if (prediction == 1) { //seed
-		Enes100.mission(LOCATION, D); //transmit plot A having plantable substrate
-		transmissions++;
-		if (hasSeedLeft) {
-	plantSeed(D);
-	hasSeedLeft = false;
-}
-}
-}
-//reset position for the rest of navigation?
+//checks if the left ultrasonic detects something within a distance
+bool leftIsClear(bool oneOff = false, int distance = leftTooClose) {
+  if (oneOff) {
+    count = US_count_thresh - 1;
+  }
+	if (US_left_dist <= distance) {
+    count++; //increments # of times sensor said too close
+    if (count >= US_count_thresh) {
+      count = 0;
+      return false; //if the sensor said too close 3 times in a row, then its too close
+    } else {
+      return true; //otherwise, its an errornious value and should be ignored
+    }
+  }
+  count = 0;
+  return true;
 }
 
-void moveToPlot(int plot, missionTask task) {
-	if (task == predict) {
-	//move so camera is above plot
-} else if (task == succ) {
-	//move so succ pipe is above plot
-} else if (task == seed) {
-	//move so seed dropper is above plot
-} else if (task == rice) {
-	//moves so rice dropper is above plot
-}
-}
-
-void lightOn (bool on) {
-	if(on){
-	//turn on light
-} else {
-	//turn off light
-}
+//checks if the right ultrasonic detects something within a distance
+bool rightIsClear(bool oneOff = false, int distance = rightTooClose) {
+  if (oneOff) {
+    count = US_count_thresh-1;
+  }
+	if (US_right_dist <= distance) {
+    count++; //increments # of times sensor said too close
+    if (count >= US_count_thresh) {
+      count = 0;
+      return false; //if the sensor said too close 3 times in a row, then its too close
+    } else {
+      return true; //otherwise, its an errornious value and should be ignored
+    }
+  }
+  count = 0;
+  return true;
 }
 
-void setColor(color C) {
-	//functionality later
+//moves rover forwards until past location (m) in axis (assumes rover will move in the positive axial direction, change axialDir to -1 for negative axial direction), more functionality to come when needed
+void moveForward(float location = -1, axis axis = rot, int axialDir = 0) { //subtract some amount from location to account for wifi delay (about 10 cm)
+  updateUltrasonics(true, false, false);
+  while(frontIsClear() && (axis == rot || (axis == X && (Enes100.getX() <= location-0.1 || (axialDir == -1 && Enes100.getX() >= location+0.1))) || (axis == Y && (Enes100.getY() <= location-0.1 || (axialDir == -1 && Enes100.getY() >= location+0.1))))) {
+    setMotor(LF, 255, true);
+    setMotor(RF, 255, false);
+    setMotor(LB, 255, true);
+    setMotor(RB, 255, false);
+    //update end conditions
+    updateUltrasonics(true, false, false);
+  }
+  stopMove();
 }
 
-void celebrate() {
-	setColor(orange);
-	delay(500);
-	setColor(pink);
-	delay(500);
-	setColor(green);
-	delay(60000); //wait 1 min
+//strafes rover left until past location (m) in axis (made assuming rover will always move in the positive axial direction), more functionality to come when needed
+void moveLeft(float location = -1, axis axis = rot) { //subtract some amount from location to account for wifi delay (about 10 cm)
+  updateUltrasonics(false, true, false);
+  while(leftIsClear() && (axis == rot || (axis == X && Enes100.getX() <= location-0.1) || (axis == Y && Enes100.getY() <= location-0.1))) {
+    setMotor(LF, 255, false);
+    setMotor(RF, 255, false);
+    setMotor(LB, 255, true);
+    setMotor(RB, 255, true);
+    //update end conditions
+    updateUltrasonics(false, true, false);
+  }
+  stopMove();
 }
 
-void loop() {
-bool startedAtTop = false;	
-//turn towards mission site
-	if(Enes100.getY() > 1) { //above halfway point? Top position
-	tryRotate(-M_PI/2);
-	startedAtTop = true;
-	setColor(orange);
-} else { //otherwise, bottom position
-	tryRotate(M_PI/2);
-	setColor(pink);
-}
-//move forward to mission site until rover detects site
-tryMoveForwards();
-//check ultrasonic sensor against vision system
-if (startedAtTop) {
-	checkPosition(Y, 0.55+0.083+frontTooClose+roverRadius, marginOfError);
-} else {
-	checkPosition(Y, 0.55+0.9-0.083-frontTooClose-roverRadius, marginOfError);
+//strafes rover right until past location (m) in axis (made assuming rover will always move in the negative axial direction), more functionality to come when needed
+void moveRight(float location = -1, axis axis = rot) { //subtract some amount from location to account for wifi delay (about 10 cm)
+  updateUltrasonics(false, false, true);
+  while(rightIsClear() && (axis == rot || (axis == X && Enes100.getX() >= location+0.1) || (axis == Y && Enes100.getY() >= location+0.1))) {
+    setMotor(LF, 255, true);
+    setMotor(RF, 255, true);
+    setMotor(LB, 255, false);
+    setMotor(RB, 255, false);
+    //update end conditions
+    updateUltrasonics(false, false, true);
+  }
+  stopMove();
 }
 
-/*mission*/
-//doMission();
-delay(1000);
-
-setColor(orange);
-//move away from mission site until X coordinate is 1.2 m
-if(startedAtTop) {
-	tryMoveLeft(0.65);
-} else {
-	tryMoveRight(0.65);
-}
-//face towards goal area
-tryRotate(0);
-
-//navigate obstacle field (for MS5)
-//navigateObstacleField();
-
-setColor(pink);
-//move to arena edge
-tryMoveLeft();
-checkPosition(Y, 2-roverRadius-leftTooClose, marginOfError);
-delay(500);
-
-setColor(white);
-//move forward, but make sure not to hit the side (turn red if too close)
-tryMoveForwards(2.9-Enes100.getX());
-
-setColor(green);
-	//strafe to center Y against limbo log
-	tryMoveRight(0.4);
-
-	//move into destination zone
-	tryMoveForwards(3.7-Enes100.getX());
-	
-	//finished!
-	celebrate();
+//moves rover backwards about a certain distance in cm, no obstacle sensing
+void reverse(float distance) {
+  setMotor(LF, 255, false);
+  setMotor(RF, 255, true);
+  setMotor(LB, 255, false);
+  setMotor(RB, 255, true);
+  delay(distance*50);
+  stopMove();
 }
 
+//turns rover left a certain number of degrees, 90 as default, based on timing
+void turnLeft(int degrees = 90) {
+  setMotor(LF, 255, false);
+  setMotor(RF, 255, false);
+  setMotor(LB, 255, false);
+  setMotor(RB, 255, false);
+  delay(degrees*10);
+  stopMove();
+}
+
+//turns rover right a certain number of degrees, 90 as default, based on timing
+void turnRight(int degrees = 90) {
+  setMotor(LF, 255, true);
+  setMotor(RF, 255, true);
+  setMotor(LB, 255, true);
+  setMotor(RB, 255, true);
+  delay(degrees*10);
+  stopMove();
+}
+
+//tries to align rover rotation to goal rotation (degrees) by checking itself with the vision system
+void tryFixRotation(float goalRot) {
+  float currentDeg = Enes100.getTheta() * 57296/1000;
+  if (currentDeg > goalRot) {
+    turnRight(currentDeg-goalRot);
+  } else if (currentDeg < goalRot) {
+    turnLeft(goalRot-currentDeg);
+  }
+}
+
+void loop () {
+  //preloads theta and Y values into cache
+  Enes100.getTheta();
+  Enes100.getY();
+  delay(1000);
+  if (Enes100.getY() >= 1) {
+    //turn to face south
+    tryFixRotation(-90);
+    //recache
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(-90); //double called just in case
+    //move to mission site
+    moveForward();
+    delay(3000); //mission
+    //turn to face east
+    turnLeft(92);
+    //pause, check rotation, and fix (it rotates less on the mat than on the floor)
+    //more preloading theta
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(0);
+    //strafe to center
+    moveLeft(1, Y);
+  } else {
+    //turn to face north
+    tryFixRotation(90);
+    //recache
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(90); //double called just in case
+    //move to mission site
+    moveForward();
+    delay(3000); //mission
+    //turn to face east
+    turnRight(92);
+    //pause, check rotation, and fix (it rotates less on the mat than on the floor)
+    //more preloading theta
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(0);
+    //stafe to center
+    moveRight(1, Y);
+  }
+  moveForward(2.9, X);
+  //called to relevantize following conditional
+  updateUltrasonics();
+  if (!frontIsClear(true)) { //checking ultrasonics with oneOff is inherently less reliable, increasing count values in ultrasonics may help
+    moveLeft();
+    updateUltrasonics();
+    if(!frontIsClear(true) && !leftIsClear(true)) {
+      moveRight();
+    }
+  }
+  tryFixRotation(0); //should I preload theta here?
+  moveForward(2.9, X);
+  delay(5000);
+}
