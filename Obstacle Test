@@ -216,9 +216,9 @@ bool rightIsClear(bool oneOff = false, int distance = rightTooClose) {
 }
 
 //moves rover forwards until past location (m) in axis (made assuming rover will always move in the positive axial direction), more functionality to come when needed
-void moveForward(float location = -1, axis axis = rot) { //subtract some amount from location to account for wifi delay (about 10 cm)
+void moveForward(float location = -1, axis axis = rot, int axialDir = 0) { //subtract some amount from location to account for wifi delay (about 10 cm)
   updateUltrasonics(true, false, false);
-  while(frontIsClear() && (axis == rot || (axis == X && Enes100.getX() <= location-0.1) || (axis == Y && Enes100.getY() <= location-0.1))) {
+  while(frontIsClear() && (axis == rot || (axis == X && (Enes100.getX() <= location-0.1 || (axialDir == -1 && Enes100.getX() >= location+0.1))) || (axis == Y && (Enes100.getY() <= location-0.1 || (axialDir == -1 && Enes100.getY() >= location+0.1))))) {
     setMotor(LF, 255, true);
     setMotor(RF, 255, false);
     setMotor(LB, 255, true);
@@ -298,17 +298,41 @@ void tryFixRotation(float goalRot) {
 }
 
 void loop () {
-  //preloads theta value into cache
+  //preloads theta and Y values into cache
   Enes100.getTheta();
+  Enes100.getY();
   delay(1000);
-  tryFixRotation(90);
-  moveForward(1, Y);
-  turnRight(92);
-  //pause, check rotation, and fix (it rotates less on the mat than on the floor)
-  //more preloading theta
-  Enes100.getTheta();
-  delay(1000);
-  tryFixRotation(0);
+  if (Enes100.getY() >= 1) {
+    //turn to face south
+    tryFixRotation(-90);
+    //recache
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(-90); //double called just in case
+    moveForward(1, Y, -1);
+    //turn to face east
+    turnLeft(92);
+    //pause, check rotation, and fix (it rotates less on the mat than on the floor)
+    //more preloading theta
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(0);
+  } else {
+    //turn to face north
+    tryFixRotation(90);
+    //recache
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(90); //double called just in case
+    moveForward(1, Y);
+    //turn to face east
+    turnRight(92);
+    //pause, check rotation, and fix (it rotates less on the mat than on the floor)
+    //more preloading theta
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(0);
+  }
   moveForward(2.9, X);
   //called to relevantize following conditional
   updateUltrasonics();
