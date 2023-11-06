@@ -298,10 +298,14 @@ void tryFixRotation(float goalRot) {
 }
 
 void loop () {
+  //preloads theta value into cache
+  Enes100.getTheta();
+  delay(1000);
+  tryFixRotation(90);
   moveForward(1, Y);
   turnRight(92);
   //pause, check rotation, and fix (it rotates less on the mat than on the floor)
-  //preloads theta value into cache
+  //more preloading theta
   Enes100.getTheta();
   delay(1000);
   tryFixRotation(0);
