@@ -50,9 +50,9 @@ enum axis {
 
 
 //other constants
-const float frontTooClose = 20; //in cm
-const float rightTooClose = 20;
-const float leftTooClose = 20;
+float frontTooClose = 20; //in cm
+float rightTooClose = 20;
+float leftTooClose = 20;
 const float roverRadius = 10; //distance from center of rotation to any sensor (may need changing)
 const float marginOfError = 5;
 const int US_count_thresh = 4;
@@ -296,6 +296,10 @@ void tryFixRotation(float goalRot) {
     turnLeft(goalRot-currentDeg);
   }
 }
+//prereq: facing towards mission site, X coord = 0.55
+void moveToMissionSite() {
+
+}
 
 void loop () {
   //preloads theta and Y values into cache
@@ -341,7 +345,13 @@ void loop () {
     //stafe to center
     moveRight(1, Y);
   }
-  moveForward(2.9, X);
+  moveForward(1, X);
+  Enes100.println(Enes100.getY());
+  leftTooClose = 0;
+  moveLeft(1.95, Y); //hug the wall, but since ultrasonics can't get close enough, use vision system (hopefully it works)
+  leftTooClose = 20;
+  Enes100.println(Enes100.getY());
+  /*
   //called to relevantize following conditional
   updateUltrasonics();
   if (!frontIsClear(true)) { //checking ultrasonics with oneOff is inherently less reliable, increasing count values in ultrasonics may help
@@ -350,8 +360,13 @@ void loop () {
     if(!frontIsClear(true) && !leftIsClear(true)) {
       moveRight();
     }
-  }
+  }*/
   tryFixRotation(0); //should I preload theta here?
+  moveForward(1.9, X);
+  tryFixRotation(0); //in case of more strafing
   moveForward(2.9, X);
+  //move under limbo
+  moveRight(1.5, Y);
+  moveForward();
   delay(5000);
 }
