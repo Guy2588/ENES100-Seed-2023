@@ -47,7 +47,24 @@ enum axis {
 	Y,
 	rot
 };
+enum direction {
+  front,
+  left,
+  right,
+  back
+};
 
+//size constants in cm
+const float plotWidth = 8.3;
+const float cameraXDist = 0; //x distance of camera from center of rover
+const float cameraYDist = 9; //y distance of camera from front of rover
+const float vacuumXDist = 0;
+const float vacuumYDist = 7;
+const float riceDropXDist = 0;
+const float riceDropYDist = 3;
+const float seedDropXDist = -4;
+const float seedDropYDist = 5;
+const float roverWidth = 20.32;
 
 //other constants
 float frontTooClose = 20; //in cm
@@ -56,6 +73,7 @@ float leftTooClose = 20;
 const float roverRadius = 10; //distance from center of rotation to any sensor (may need changing)
 const float marginOfError = 5;
 const int US_count_thresh = 4;
+const int orzo = 0;
 
 //distance variables (in cm)
 float US_front_dist;
@@ -257,12 +275,29 @@ void moveRight(float location = -1, axis axis = rot) { //subtract some amount fr
   stopMove();
 }
 
-//moves rover backwards about a certain distance in cm, no obstacle sensing
-void reverse(float distance) {
-  setMotor(LF, 255, false);
-  setMotor(RF, 255, true);
-  setMotor(LB, 255, false);
-  setMotor(RB, 255, true);
+//moves rover in any direction about a certain distance in cm, no obstacle sensing
+void moveDirDist(direction direction, float distance) {
+  if (direction == back) {
+    setMotor(LF, 255, false);
+    setMotor(RF, 255, true);
+    setMotor(LB, 255, false);
+    setMotor(RB, 255, true);
+  } else if (direction == front) {
+    setMotor(LF, 255, true);
+    setMotor(RF, 255, false);
+    setMotor(LB, 255, true);
+    setMotor(RB, 255, false);
+  } else if (direction == left) {
+    setMotor(LF, 255, false);
+    setMotor(RF, 255, false);
+    setMotor(LB, 255, true);
+    setMotor(RB, 255, true);
+  } else if (direction == right) {
+    setMotor(LF, 255, true);
+    setMotor(RF, 255, true);
+    setMotor(LB, 255, false);
+    setMotor(RB, 255, false);
+  }
   delay(distance*50);
   stopMove();
 }
@@ -301,6 +336,118 @@ void moveToMissionSite() {
 
 }
 
+void mission() {
+  bool hasSeed = true;
+  int plantablePlots = 0;
+  while (US_front_dist <= frontTooClose) {
+    moveLeft();
+  }
+  stopMove(); //rover should be aligned with left edge of box
+  //move to first plot
+  moveDirDist(right, plotWidth/2+cameraXDist); //align camera X
+  updateUltrasonics();
+  moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
+  if (Enes100.MLGetPrediction() == orzo) { //orzo
+    plantablePlots++;
+    //tell them that this plot is orzo
+    if (Enes100.getY() > 1) {
+      Enes100.mission(PLOT, D); //is this a valid call? no. Are the valid calls any better? also no.
+    } else {
+      Enes100.mission(PLOT, B);
+    }
+    //plant seed
+    //align vacuum with plot (assuming camera and vacuum are directly infront of each other)
+    moveDirDist(front, cameraYDist-vacuumYDist);
+    //turn on vacuum
+    //maybe shake a little
+    //turn off vacuum
+    //align seed drop with plot
+    hasSeed = false;
+    //realign camera to center of plot
+  }
+  //move to second plot, precondition camera already above first plot
+  moveDirDist(right, plotWidth); //now camera should be above 2nd plot
+  if (Enes100.MLGetPrediction() == orzo) {
+    plantablePlots++;
+    //tell them that this plot is orzo
+    if (Enes100.getY() > 1) {
+      Enes100.mission(PLOT, A);
+    } else {
+      Enes100.mission(PLOT, C);
+    }
+    if (hasSeed) {
+      //plant seed
+      hasSeed = false;
+      //realign camera to center of plot
+    }
+  }
+  //if our first two happened to be orzo, we can leave and begin navigating
+  if (plantablePlots == 2) {
+    return;
+  }
+  //move to 3rd plot
+  moveDirDist(right, plotWidth/2+roverWidth/2+2); //2 cm away from plot
+  moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist-plotWidth/2+10); //10 cm away from plot
+  turnLeft(180);
+  if (Enes100.getY() > 1) {
+    tryFixRotation(-90);
+  } else {
+    tryFixRotation(90);
+  }
+  moveDirDist(right, 2+plotWidth/2); //align camera X
+  updateUltrasonics();
+  moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
+  if (Enes100.MLGetPrediction() == orzo) {
+    plantablePlots++;
+    //tell them that this plot is orzo
+    if (Enes100.getY() > 1) {
+      Enes100.mission(PLOT, B);
+    } else {
+      Enes100.mission(PLOT, D);
+    }
+    if (hasSeed) {
+      //plant seed
+      hasSeed = false;
+      //realign camera to center of plot
+    }
+  }
+  //if we've transmitted 2 plots already, we can leave
+  if (plantablePlots == 2) {
+    moveDirDist(left, 2+plotWidth/2+roverWidth/2);
+    moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist-plotWidth/2+10);
+    moveDirDist(right, 2+plotWidth+roverWidth/2);
+    turnLeft(180);
+    if (Enes100.getY() > 1) {
+      tryFixRotation(90);
+    } else {
+      tryFixRotation(-90);
+    }
+    return;
+  }
+  //move to 4th plot, precondition camera already aligned with 3rd plot
+  moveDirDist(right, plotWidth);
+  if (Enes100.MLGetPrediction() == orzo) {
+    plantablePlots++;
+    //tell them that this plot is orzo
+    if (Enes100.getY() > 1) {
+      Enes100.mission(PLOT, C);
+    } else {
+      Enes100.mission(PLOT, A);
+    }
+    //you won't have a seed by the forth plot.
+  }
+  //reset position
+  moveDirDist(right, plotWidth/2+roverWidth/2+2); //2 cm away from plot
+  moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist-plotWidth/2+10); //10 cm from plot
+  moveDirDist(left, 2+plotWidth+roverWidth/2);
+  turnLeft(180);
+  if (Enes100.getY() > 1) {
+    tryFixRotation(90);
+  } else {
+    tryFixRotation(-90);
+  }
+}
+
 void loop () {
   //preloads theta and Y values into cache
   Enes100.getTheta();
@@ -314,8 +461,12 @@ void loop () {
     delay(1000);
     tryFixRotation(-90); //double called just in case
     //move to mission site
+    moveForward(1,Y,-1);
+    tryFixRotation(-90); //sometimes it strafes a little when moving to mission site
     moveForward();
-    delay(3000); //mission
+    tryFixRotation(-90);
+    //mission(); //mission
+    delay(3000);
     //turn to face east
     turnLeft(92);
     //pause, check rotation, and fix (it rotates less on the mat than on the floor)
@@ -333,8 +484,12 @@ void loop () {
     delay(1000);
     tryFixRotation(90); //double called just in case
     //move to mission site
+    moveForward(1, Y);
+    tryFixRotation(90); //sometimes it strafes a little when moving to mission site
     moveForward();
-    delay(3000); //mission
+    tryFixRotation(90);
+    //mission(); //mission
+    delay(3000);
     //turn to face east
     turnRight(92);
     //pause, check rotation, and fix (it rotates less on the mat than on the floor)
@@ -346,11 +501,11 @@ void loop () {
     moveRight(1, Y);
   }
   moveForward(1, X);
-  Enes100.println(Enes100.getY());
+  //Enes100.println(Enes100.getY());
   leftTooClose = 0;
   moveLeft(1.95, Y); //hug the wall, but since ultrasonics can't get close enough, use vision system (hopefully it works)
   leftTooClose = 20;
-  Enes100.println(Enes100.getY());
+  //Enes100.println(Enes100.getY());
   /*
   //called to relevantize following conditional
   updateUltrasonics();
