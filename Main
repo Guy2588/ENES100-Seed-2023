@@ -1,5 +1,6 @@
 #include <Enes100.h>
 #include <math.h>
+#include <Servo.h>
 
 //H-bridge
 //left side
@@ -33,6 +34,19 @@ const int US_right_echo = 34;
 //camera
 const int Cam_Tx = 51;
 const int Cam_Rx = 52;
+
+//servos
+Servo SeedDrop;
+Servo OrzoDrop;
+Servo VacuumMountL;
+Servo VacuumMountR;
+const int seedDrop = 7;
+const int orzoDrop = 4;
+const int vacuumMountL = 6;
+const int vacuumMountR = 5;
+
+//fan control transitor
+const int fan = 45;
 
 
 //enums
@@ -84,7 +98,7 @@ int count = 0;
 
 void setup() {
   Serial.begin(9600);
-  Enes100.begin("Farmers\' Insurance", SEED, 11, Cam_Tx, Cam_Rx);
+  Enes100.begin("Farmers\' Insurance", SEED, 12, Cam_Tx, Cam_Rx);
   Enes100.println("Farmers\' Insurance successfully connected to vision system!");
   //setup h-bridge and motors
   //left side
@@ -108,6 +122,13 @@ void setup() {
   pinMode(US_left_echo, INPUT);
   pinMode(US_right_trig, OUTPUT);
   pinMode(US_right_echo, INPUT);
+  //setup servos
+  SeedDrop.attach(seedDrop);
+  OrzoDrop.attach(orzoDrop);
+  VacuumMountL.attach(vacuumMountL);
+  VacuumMountR.attach(vacuumMountR);
+  //setup fan transistor
+  pinMode(fan, OUTPUT);
 }
 
 //sets the specified motor to a speed and direction
@@ -331,23 +352,56 @@ void tryFixRotation(float goalRot) {
     turnLeft(goalRot-currentDeg);
   }
 }
+
 //prereq: facing towards mission site, X coord = 0.55
 void moveToMissionSite() {
 
+}
+
+//shakes the rover a little to help succ
+void shakeALittle() {
+  for (int i=0; i<5; i++) {
+    moveDirDist(front, 0.5);
+    moveDirDist(right, 0.5);
+    moveDirDist(back, 0.5);
+    moveDirDist(left, 0.5);
+  }
+}
+
+//with the camera centered over the plot, plant the seed, then return the rover to being camera centered over the plot
+void plantSeed() {
+  //move vacuum over plot
+  //vacuum on
+  //shake, with servos
+  //vacuum off
+  //move seed drop over plot
+  //drop seed
+  SeedDrop.write(80);
+  //move orzo drop over plot
+  delay(1000);
+  //drop orzo
+  OrzoDrop.write(40);
+  //move camera over plot
+  delay(1000);
 }
 
 void mission() {
   bool hasSeed = true;
   int plantablePlots = 0;
   while (US_front_dist <= frontTooClose) {
-    moveLeft();
+    setMotor(LF, 100, false);
+    setMotor(RF, 100, false);
+    setMotor(LB, 100, true);
+    setMotor(RB, 100, true);
+    updateUltrasonics();
   }
   stopMove(); //rover should be aligned with left edge of box
+  delay(1000);
   //move to first plot
   moveDirDist(right, plotWidth/2+cameraXDist); //align camera X
   updateUltrasonics();
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
-  if (Enes100.MLGetPrediction() == orzo) { //orzo
+  /*if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
@@ -357,17 +411,17 @@ void mission() {
     }
     //plant seed
     //align vacuum with plot (assuming camera and vacuum are directly infront of each other)
-    moveDirDist(front, cameraYDist-vacuumYDist);
+    //moveDirDist(front, cameraYDist-vacuumYDist);
     //turn on vacuum
     //maybe shake a little
     //turn off vacuum
     //align seed drop with plot
     hasSeed = false;
     //realign camera to center of plot
-  }
+  }*/
   //move to second plot, precondition camera already above first plot
   moveDirDist(right, plotWidth); //now camera should be above 2nd plot
-  if (Enes100.MLGetPrediction() == orzo) {
+  /*if (Enes100.MLGetPrediction() == orzo) {
     plantablePlots++;
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
@@ -380,7 +434,7 @@ void mission() {
       hasSeed = false;
       //realign camera to center of plot
     }
-  }
+  }*/
   //if our first two happened to be orzo, we can leave and begin navigating
   if (plantablePlots == 2) {
     return;
@@ -397,7 +451,7 @@ void mission() {
   moveDirDist(right, 2+plotWidth/2); //align camera X
   updateUltrasonics();
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
-  if (Enes100.MLGetPrediction() == orzo) {
+  /*if (Enes100.MLGetPrediction() == orzo) {
     plantablePlots++;
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
@@ -410,7 +464,7 @@ void mission() {
       hasSeed = false;
       //realign camera to center of plot
     }
-  }
+  }*/
   //if we've transmitted 2 plots already, we can leave
   if (plantablePlots == 2) {
     moveDirDist(left, 2+plotWidth/2+roverWidth/2);
@@ -426,7 +480,7 @@ void mission() {
   }
   //move to 4th plot, precondition camera already aligned with 3rd plot
   moveDirDist(right, plotWidth);
-  if (Enes100.MLGetPrediction() == orzo) {
+  /*if (Enes100.MLGetPrediction() == orzo) {
     plantablePlots++;
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
@@ -435,7 +489,7 @@ void mission() {
       Enes100.mission(PLOT, A);
     }
     //you won't have a seed by the forth plot.
-  }
+  }*/
   //reset position
   moveDirDist(right, plotWidth/2+roverWidth/2+2); //2 cm away from plot
   moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist-plotWidth/2+10); //10 cm from plot
@@ -465,8 +519,7 @@ void loop () {
     tryFixRotation(-90); //sometimes it strafes a little when moving to mission site
     moveForward();
     tryFixRotation(-90);
-    //mission(); //mission
-    delay(3000);
+    mission(); //mission
     //turn to face east
     turnLeft(92);
     //pause, check rotation, and fix (it rotates less on the mat than on the floor)
@@ -488,8 +541,7 @@ void loop () {
     tryFixRotation(90); //sometimes it strafes a little when moving to mission site
     moveForward();
     tryFixRotation(90);
-    //mission(); //mission
-    delay(3000);
+    mission(); //mission
     //turn to face east
     turnRight(92);
     //pause, check rotation, and fix (it rotates less on the mat than on the floor)
