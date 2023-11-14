@@ -122,11 +122,11 @@ void setup() {
   pinMode(US_left_echo, INPUT);
   pinMode(US_right_trig, OUTPUT);
   pinMode(US_right_echo, INPUT);
-  //setup servos
-  SeedDrop.attach(seedDrop);
+  //setup servos (or perhaps don't attach these just yet, doing so messes up everything else)
+  /*SeedDrop.attach(seedDrop);
   OrzoDrop.attach(orzoDrop);
   VacuumMountL.attach(vacuumMountL);
-  VacuumMountR.attach(vacuumMountR);
+  VacuumMountR.attach(vacuumMountR);*/
   //setup fan transistor
   pinMode(fan, OUTPUT);
 }
@@ -389,17 +389,34 @@ void mission() {
   bool hasSeed = true;
   int plantablePlots = 0;
   while (US_front_dist <= frontTooClose) {
-    setMotor(LF, 100, false);
-    setMotor(RF, 100, false);
-    setMotor(LB, 100, true);
-    setMotor(RB, 100, true);
-    updateUltrasonics();
+    setMotor(LF, 200, false);
+    setMotor(RF, 200, false);
+    setMotor(LB, 200, true);
+    setMotor(RB, 200, true);
+    updateUltrasonics(true, false, false);
   }
   stopMove(); //rover should be aligned with left edge of box
+  //alternatively, just trust that the box is positioned correctly and you are too
+  /*if (Enes100.getY() > 1) { //straighten yourself out
+    tryFixRotation(90);
+    if (Enes100.getX() > 0.55) {
+      moveDirDist(left, Enes100.getX()-0.55);
+    } else if (Enes100.getX() < 0.55) {
+      moveDirDist(right, 0.55-Enes100.getX())
+    }
+  } else {
+    tryFixRotation(-90);
+    if (Enes100.getX() > 0.55) {
+      moveDirDist(right, Enes100.getX()-0.55);
+    } else if (Enes100.getX() < 0.55) {
+      moveDirDist(left, 0.55-Enes100.getX());
+    }
+  }*/
   delay(1000);
   //move to first plot
   moveDirDist(right, plotWidth/2+cameraXDist); //align camera X
-  updateUltrasonics();
+  //moveDirDist(left, plotWidth/2);
+  updateUltrasonics(true, false, false);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
   /*if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
@@ -449,7 +466,7 @@ void mission() {
     tryFixRotation(90);
   }
   moveDirDist(right, 2+plotWidth/2); //align camera X
-  updateUltrasonics();
+  updateUltrasonics(true, false, false);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
   /*if (Enes100.MLGetPrediction() == orzo) {
     plantablePlots++;
