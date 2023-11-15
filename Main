@@ -1,6 +1,8 @@
 #include <Enes100.h>
 #include <math.h>
 #include <Servo.h>
+#include <Wire.h>
+#include "Adafruit_TCS34725.h"
 
 //H-bridge
 //left side
@@ -49,15 +51,21 @@ const int vacuumMountR = 5;
 const int fan = 45;
 
 //color sensor
-const int 
+/*#define redpin 3
+#define greenpin 5
+#define bluepin 6
+#define commonAnode true
+byte gammatable[256];
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
+float red, green, blue;*/
 
 
 //enums
 enum motor{
-  LF, //left front
+  LF,
   LB,
-  RF,
-  RB
+  RB,
+  RF
 };
 enum axis {
 	X,
@@ -132,7 +140,50 @@ void setup() {
   VacuumMountR.attach(vacuumMountR);*/
   //setup fan transistor
   pinMode(fan, OUTPUT);
+  //color sensor
+  /*#if defined(ARDUINO_ARCH_ESP32)
+  ledcAttachPin(redpin, 1);
+  ledcSetup(1, 12000, 8);
+  ledcAttachPin(greenpin, 2);
+  ledcSetup(2, 12000, 8);
+  ledcAttachPin(bluepin, 3);
+  ledcSetup(3, 12000, 8);
+#else
+  pinMode(redpin, OUTPUT);
+  pinMode(greenpin, OUTPUT);
+  pinMode(bluepin, OUTPUT);
+#endif
+for (int i = 0; i < 256; i++) {
+    float x = i;
+    x /= 255;
+    x = pow(x, 2.5);
+    x *= 255;
+
+    if (commonAnode) {
+      gammatable[i] = 255 - x;
+    } else {
+      gammatable[i] = x;
+    }
+    //Serial.println(gammatable[i]);
+  }*/
 }
+
+//color sensor stuff idk
+/*void tellsub() {
+  tcs.getRGB(&red, &green, &blue);
+    int redInt = int(red);
+  
+    for (int i = 0; i < 1; i++) {
+     if (redInt >= 80 && redInt <= 93) {
+        Serial.println("rocks");
+        delay(50);
+      } else if (redInt >= 94 && redInt <= 99) {
+        Serial.println("orzo");
+        delay(50);
+      }
+    }
+  tcs.getRGB(&red, &green, &blue);      // Updates the 'red' variable
+}*/
 
 //sets the specified motor to a speed and direction
 void setMotor(motor motor, int speed, bool CW) {
@@ -437,9 +488,11 @@ void mission() {
   updateUltrasonics(true, false, false);
   delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
+  /*tcs.getRGB(&red, &green, &blue);
+  int redInt = int(red);*/
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
-    Enes100.println("1st: Orzo");
+    Enes100.print("1st: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
       Enes100.mission(LOCATION, 'D'); //is this a valid call? no. Are the valid calls any better? also no.
@@ -456,14 +509,14 @@ void mission() {
     hasSeed = false;
     //realign camera to center of plot
   } else {
-    Enes100.println("1st: Rocks");
+    Enes100.print("1st: Rocks");
   }
   delay(2000);
   //move to second plot, precondition camera already above first plot
   moveDirDist(right, plotWidth+2); //now camera should be above 2nd plot
-  if (Enes100.MLGetPrediction() == orzo) {
+  if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
-    Enes100.println("2nd: Orzo");
+    Enes100.print("2nd: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
       Enes100.mission(LOCATION, 'A');
@@ -476,7 +529,7 @@ void mission() {
       //realign camera to center of plot
     }
   } else {
-    Enes100.println("2nd: Rocks");
+    Enes100.print("2th: Rocks");
   }
   delay(2000);
   //if our first two happened to be orzo, we can leave and begin navigating
@@ -518,9 +571,9 @@ void mission() {
   updateUltrasonics(true, false, false);
   delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
-  if (Enes100.MLGetPrediction() == orzo) {
+  if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
-    Enes100.println("3rd: Orzo");
+    Enes100.print("3th: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
       Enes100.mission(LOCATION, 'B');
@@ -533,7 +586,7 @@ void mission() {
       //realign camera to center of plot
     }
   } else {
-    Enes100.println("3rd: Rocks");
+    Enes100.print("3th: Rocks");
   }
   delay(2000);
   //if we've transmitted 2 plots already, we can leave
@@ -560,9 +613,9 @@ void mission() {
   }
   //move to 4th plot, precondition camera already aligned with 3rd plot
   moveDirDist(right, plotWidth+2);
-  if (Enes100.MLGetPrediction() == orzo) {
+  if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
-    Enes100.println("4th: Orzo");
+    Enes100.print("4th: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
       Enes100.mission(LOCATION, 'C');
@@ -571,7 +624,7 @@ void mission() {
     }
     //you won't have a seed by the forth plot.
   } else {
-    Enes100.println("4th: Rocks");
+    Enes100.print("4th: Rocks");
   }
   delay(2000);
   //reset position
