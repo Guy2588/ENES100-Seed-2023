@@ -48,6 +48,9 @@ const int vacuumMountR = 5;
 //fan control transitor
 const int fan = 45;
 
+//color sensor
+const int 
+
 
 //enums
 enum motor{
@@ -71,7 +74,7 @@ enum direction {
 //size constants in cm
 const float plotWidth = 8.3;
 const float cameraXDist = 0; //x distance of camera from center of rover
-const float cameraYDist = 9; //y distance of camera from front of rover
+const float cameraYDist = 7; //y distance of camera from front of rover
 const float vacuumXDist = 0;
 const float vacuumYDist = 7;
 const float riceDropXDist = 0;
@@ -98,7 +101,7 @@ int count = 0;
 
 void setup() {
   Serial.begin(9600);
-  Enes100.begin("Farmers\' Insurance", SEED, 12, Cam_Tx, Cam_Rx);
+  Enes100.begin("Farmers\' Insurance", SEED, 10, Cam_Tx, Cam_Rx);
   Enes100.println("Farmers\' Insurance successfully connected to vision system!");
   //setup h-bridge and motors
   //left side
@@ -388,43 +391,60 @@ void plantSeed() {
 void mission() {
   bool hasSeed = true;
   int plantablePlots = 0;
-  while (US_front_dist <= frontTooClose) {
+  /*while (US_front_dist <= frontTooClose) {
     setMotor(LF, 200, false);
     setMotor(RF, 200, false);
     setMotor(LB, 200, true);
     setMotor(RB, 200, true);
     updateUltrasonics(true, false, false);
   }
-  stopMove(); //rover should be aligned with left edge of box
+  stopMove();*/ //rover should be aligned with left edge of box
   //alternatively, just trust that the box is positioned correctly and you are too
-  /*if (Enes100.getY() > 1) { //straighten yourself out
+  delay(1000);
+  if (Enes100.getY() > 1) { //straighten yourself out
     tryFixRotation(90);
-    if (Enes100.getX() > 0.55) {
-      moveDirDist(left, Enes100.getX()-0.55);
-    } else if (Enes100.getX() < 0.55) {
-      moveDirDist(right, 0.55-Enes100.getX())
+    Enes100.getX();//precache
+    delay(1000);
+    if (Enes100.getX() > 0.48) {
+      moveDirDist(left, (Enes100.getX()-0.48)*100);
+    } else if (Enes100.getX() < 0.48) {
+      moveDirDist(right, (0.48-Enes100.getX())*100);
     }
   } else {
     tryFixRotation(-90);
-    if (Enes100.getX() > 0.55) {
-      moveDirDist(right, Enes100.getX()-0.55);
-    } else if (Enes100.getX() < 0.55) {
-      moveDirDist(left, 0.55-Enes100.getX());
+    Enes100.getX();//precache
+    delay(1000);
+    if (Enes100.getX() > 0.48) {
+      Enes100.print("Pos: ");
+      Enes100.print(Enes100.getX());
+      Enes100.print(", moving right ");
+      Enes100.print((Enes100.getX()-0.48)*100);
+      Enes100.println(" cm");
+      moveDirDist(right, (Enes100.getX()-0.48)*100);
+    } else if (Enes100.getX() < 0.48) {
+      Enes100.print("Pos: ");
+      Enes100.print(Enes100.getX());
+      Enes100.print(", moving left ");
+      Enes100.print((0.48-Enes100.getX())*100);
+      Enes100.println(" cm");
+      moveDirDist(left, (0.48-Enes100.getX())*100);
     }
-  }*/
+  }
   delay(1000);
   //move to first plot
-  moveDirDist(right, plotWidth/2+cameraXDist); //align camera X
-  //moveDirDist(left, plotWidth/2);
+  //moveDirDist(right, plotWidth/2+cameraXDist); //align camera X
+  moveDirDist(left, plotWidth/2);
   updateUltrasonics(true, false, false);
+  delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
-  /*if (Enes100.MLGetPrediction() == orzo) { //orzo
+  if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
+    Enes100.println("1st: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
-      Enes100.mission(PLOT, D); //is this a valid call? no. Are the valid calls any better? also no.
+      Enes100.mission(LOCATION, 'D'); //is this a valid call? no. Are the valid calls any better? also no.
     } else {
-      Enes100.mission(PLOT, B);
+      Enes100.mission(LOCATION, 'B');
     }
     //plant seed
     //align vacuum with plot (assuming camera and vacuum are directly infront of each other)
@@ -435,57 +455,91 @@ void mission() {
     //align seed drop with plot
     hasSeed = false;
     //realign camera to center of plot
-  }*/
+  } else {
+    Enes100.println("1st: Rocks");
+  }
+  delay(2000);
   //move to second plot, precondition camera already above first plot
-  moveDirDist(right, plotWidth); //now camera should be above 2nd plot
-  /*if (Enes100.MLGetPrediction() == orzo) {
+  moveDirDist(right, plotWidth+2); //now camera should be above 2nd plot
+  if (Enes100.MLGetPrediction() == orzo) {
     plantablePlots++;
+    Enes100.println("2nd: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
-      Enes100.mission(PLOT, A);
+      Enes100.mission(LOCATION, 'A');
     } else {
-      Enes100.mission(PLOT, C);
+      Enes100.mission(LOCATION, 'C');
     }
     if (hasSeed) {
       //plant seed
       hasSeed = false;
       //realign camera to center of plot
     }
-  }*/
+  } else {
+    Enes100.println("2nd: Rocks");
+  }
+  delay(2000);
   //if our first two happened to be orzo, we can leave and begin navigating
   if (plantablePlots == 2) {
     return;
   }
   //move to 3rd plot
-  moveDirDist(right, plotWidth/2+roverWidth/2+2); //2 cm away from plot
-  moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist-plotWidth/2+10); //10 cm away from plot
+  if (Enes100.getY() > 1) {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(90);
+  } else {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(-90);
+  }
+  moveDirDist(right, plotWidth/2+roverWidth/2+5); //5 cm away from plot
+  if (Enes100.getY() > 1) {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(90);
+  } else {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(-90);
+  }
+  moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist+20); //20 cm away from plot
   turnLeft(180);
   if (Enes100.getY() > 1) {
+    Enes100.getTheta();
+    delay(1000);
     tryFixRotation(-90);
   } else {
+    Enes100.getTheta();
+    delay(1000);
     tryFixRotation(90);
   }
-  moveDirDist(right, 2+plotWidth/2); //align camera X
+  moveDirDist(right, plotWidth/2+15); //align camera X
   updateUltrasonics(true, false, false);
+  delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
-  /*if (Enes100.MLGetPrediction() == orzo) {
+  if (Enes100.MLGetPrediction() == orzo) {
     plantablePlots++;
+    Enes100.println("3rd: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
-      Enes100.mission(PLOT, B);
+      Enes100.mission(LOCATION, 'B');
     } else {
-      Enes100.mission(PLOT, D);
+      Enes100.mission(LOCATION, 'D');
     }
     if (hasSeed) {
       //plant seed
       hasSeed = false;
       //realign camera to center of plot
     }
-  }*/
+  } else {
+    Enes100.println("3rd: Rocks");
+  }
+  delay(2000);
   //if we've transmitted 2 plots already, we can leave
   if (plantablePlots == 2) {
     moveDirDist(left, 2+plotWidth/2+roverWidth/2);
-    moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist-plotWidth/2+10);
+    moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist+20);
     moveDirDist(right, 2+plotWidth+roverWidth/2);
     turnLeft(180);
     if (Enes100.getY() > 1) {
@@ -495,26 +549,43 @@ void mission() {
     }
     return;
   }
+  if (Enes100.getY() > 1) {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(-90);
+  } else {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(90);
+  }
   //move to 4th plot, precondition camera already aligned with 3rd plot
-  moveDirDist(right, plotWidth);
-  /*if (Enes100.MLGetPrediction() == orzo) {
+  moveDirDist(right, plotWidth+2);
+  if (Enes100.MLGetPrediction() == orzo) {
     plantablePlots++;
+    Enes100.println("4th: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
-      Enes100.mission(PLOT, C);
+      Enes100.mission(LOCATION, 'C');
     } else {
-      Enes100.mission(PLOT, A);
+      Enes100.mission(LOCATION, 'A');
     }
     //you won't have a seed by the forth plot.
-  }*/
+  } else {
+    Enes100.println("4th: Rocks");
+  }
+  delay(2000);
   //reset position
-  moveDirDist(right, plotWidth/2+roverWidth/2+2); //2 cm away from plot
-  moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist-plotWidth/2+10); //10 cm from plot
-  moveDirDist(left, 2+plotWidth+roverWidth/2);
+  moveDirDist(right, plotWidth/2+roverWidth/2+5); //5 cm away from plot
+  moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist+20); //10 cm from plot
+  moveDirDist(left, 5+plotWidth+roverWidth/2);
   turnLeft(180);
   if (Enes100.getY() > 1) {
+    Enes100.getTheta();
+    delay(1000);
     tryFixRotation(90);
   } else {
+    Enes100.getTheta();
+    delay(1000);
     tryFixRotation(-90);
   }
 }
@@ -535,7 +606,6 @@ void loop () {
     moveForward(1,Y,-1);
     tryFixRotation(-90); //sometimes it strafes a little when moving to mission site
     moveForward();
-    tryFixRotation(-90);
     mission(); //mission
     //turn to face east
     turnLeft(92);
@@ -557,7 +627,6 @@ void loop () {
     moveForward(1, Y);
     tryFixRotation(90); //sometimes it strafes a little when moving to mission site
     moveForward();
-    tryFixRotation(90);
     mission(); //mission
     //turn to face east
     turnRight(92);
