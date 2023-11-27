@@ -1,7 +1,7 @@
 #include <Enes100.h>
 #include <math.h>
 #include <Servo.h>
-#include <Wire.h>
+//#include <Wire.h>
 #include "Adafruit_TCS34725.h"
 
 //H-bridge
@@ -49,15 +49,6 @@ const int vacuumMountR = 5;
 
 //fan control transitor
 const int fan = 45;
-
-//color sensor
-/*#define redpin 3
-#define greenpin 5
-#define bluepin 6
-#define commonAnode true
-byte gammatable[256];
-Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
-float red, green, blue;*/
 
 
 //enums
@@ -136,54 +127,14 @@ void setup() {
   //setup servos (or perhaps don't attach these just yet, doing so messes up everything else)
   /*SeedDrop.attach(seedDrop);
   OrzoDrop.attach(orzoDrop);
+  OrzoDrop.write(60);
   VacuumMountL.attach(vacuumMountL);
-  VacuumMountR.attach(vacuumMountR);*/
+  VacuumMountL.write(30);
+  VacuumMountR.attach(vacuumMountR);
+  VacuumMountR.write(160);*/
   //setup fan transistor
   pinMode(fan, OUTPUT);
-  //color sensor
-  /*#if defined(ARDUINO_ARCH_ESP32)
-  ledcAttachPin(redpin, 1);
-  ledcSetup(1, 12000, 8);
-  ledcAttachPin(greenpin, 2);
-  ledcSetup(2, 12000, 8);
-  ledcAttachPin(bluepin, 3);
-  ledcSetup(3, 12000, 8);
-#else
-  pinMode(redpin, OUTPUT);
-  pinMode(greenpin, OUTPUT);
-  pinMode(bluepin, OUTPUT);
-#endif
-for (int i = 0; i < 256; i++) {
-    float x = i;
-    x /= 255;
-    x = pow(x, 2.5);
-    x *= 255;
-
-    if (commonAnode) {
-      gammatable[i] = 255 - x;
-    } else {
-      gammatable[i] = x;
-    }
-    //Serial.println(gammatable[i]);
-  }*/
 }
-
-//color sensor stuff idk
-/*void tellsub() {
-  tcs.getRGB(&red, &green, &blue);
-    int redInt = int(red);
-  
-    for (int i = 0; i < 1; i++) {
-     if (redInt >= 80 && redInt <= 93) {
-        Serial.println("rocks");
-        delay(50);
-      } else if (redInt >= 94 && redInt <= 99) {
-        Serial.println("orzo");
-        delay(50);
-      }
-    }
-  tcs.getRGB(&red, &green, &blue);      // Updates the 'red' variable
-}*/
 
 //sets the specified motor to a speed and direction
 void setMotor(motor motor, int speed, bool CW) {
@@ -229,6 +180,29 @@ void stopMove() {
   digitalWrite(HR_F_CCW, LOW);
   digitalWrite(HR_B_CW, LOW);
   digitalWrite(HR_B_CCW, LOW);
+}
+
+//moves nose up or down, default angle of 60 degrees, max angle of 150 and min of -20?
+void moveNoseUp(bool dir = true, int angle = 60) {
+  for (int i = 0; i<angle; i++) {
+    VacuumMountR.write(dir? 160-i : 160-angle+i); //vertical
+    VacuumMountL.write(dir? 30+i : 30+angle-i); //vertical
+    delay(10);
+  }
+}
+//moves seed door open or closed by 50 degrees, max 180 min 0
+void moveSeedOpen(bool dir = true, int angle = 50) {
+  for (int i = 0; i<angle; i++) {
+    SeedDrop.write(dir? 0+i : 0+angle-i);
+    delay(10);
+  }
+}
+//moves orzo door open or closed by 100 degrees, max 120 min -60
+void moveOrzoOpen(bool dir = true, int angle = 100) {
+  for (int i = 0; i<angle; i++) {
+    OrzoDrop.write(dir? 60+i : 60+angle-i);
+    delay(10);
+  }
 }
 
 //updates running ultrasonic values, but only the ones you want, for whatever reason
