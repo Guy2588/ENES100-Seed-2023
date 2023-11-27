@@ -47,7 +47,8 @@ void plantSeed() {
   moveNoseUp(false);
   delay(500);
   digitalWrite(fan, HIGH);
-  delay(10000); //vacuum
+  delay(5000); //vacuum
+  //move nose up and down to vacuum better
   digitalWrite(fan, LOW);
   delay(500);
   moveSeedOpen();
