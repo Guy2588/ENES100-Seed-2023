@@ -1,39 +1,5 @@
-#include <Enes100.h>
 #include <math.h>
 #include <Servo.h>
-
-//H-bridge
-//left side
-//left back
-const int HLpwmB = 13;
-const int HL_B_CW = 24; //set true for clockwise
-const int HL_B_CCW = 25; //set true for counterclockwise
-//left front
-const int HLpwmF = 12;
-const int HL_F_CW = 22;
-const int HL_F_CCW = 23;
-
-//right side
-//right back
-const int HRpwmB = 10;
-const int HR_B_CW = 28;
-const int HR_B_CCW = 29;
-//right front
-const int HRpwmF = 9;
-const int HR_F_CW = 27;
-const int HR_F_CCW = 26;
-
-//ultrasonic sensors
-const int US_front_trig = 38;
-const int US_front_echo = 39;
-const int US_left_trig = 36;
-const int US_left_echo = 37;
-const int US_right_trig = 35;
-const int US_right_echo = 34;
-
-//camera
-const int Cam_Tx = 51;
-const int Cam_Rx = 52;
 
 //servos
 Servo SeedDrop;
@@ -46,87 +12,55 @@ const int vacuumMountL = 5;
 const int vacuumMountR = 6;
 
 //fan control transitor
-const int fan = 45;
-
-
-//enums
-enum motor{
-  LF, //left front
-  LB,
-  RF,
-  RB
-};
-enum axis {
-	X,
-	Y,
-	rot
-};
-enum direction {
-  front,
-  left,
-  right,
-  back
-};
-
-//size constants in cm
-const float plotWidth = 8.3;
-const float cameraXDist = 0; //x distance of camera from center of rover
-const float cameraYDist = 9; //y distance of camera from front of rover
-const float vacuumXDist = 0;
-const float vacuumYDist = 7;
-const float riceDropXDist = 0;
-const float riceDropYDist = 3;
-const float seedDropXDist = -4;
-const float seedDropYDist = 5;
-const float roverWidth = 20.32;
-
-//other constants
-float frontTooClose = 20; //in cm
-float rightTooClose = 20;
-float leftTooClose = 20;
-const float roverRadius = 10; //distance from center of rotation to any sensor (may need changing)
-const float marginOfError = 5;
-const int US_count_thresh = 4;
-const int orzo = 0;
-
-//distance variables (in cm)
-float US_front_dist;
-float US_left_dist;
-float US_right_dist;
-int count = 0;
+const int fan = 8;
 
 void setup() {
-    //setup servos
+  pinMode(fan, OUTPUT);
   SeedDrop.attach(seedDrop);
   OrzoDrop.attach(orzoDrop);
   VacuumMountL.attach(vacuumMountL);
   VacuumMountR.attach(vacuumMountR);
-  
 }
-
+void moveNoseUp(bool dir = true, int angle = 60) {
+  for (int i = 0; i<angle; i++) {
+    VacuumMountR.write(dir? 160-i : 160-angle+i); //vertical
+    VacuumMountL.write(dir? 30+i : 30+angle-i); //vertical
+    delay(10);
+  }
+}
+void moveSeedOpen(bool dir = true, int angle = 50) {
+  for (int i = 0; i<angle; i++) {
+    SeedDrop.write(dir? 0+i : 0+angle-i);
+    delay(10);
+  }
+}
+void moveOrzoOpen(bool dir = true, int angle = 100) {
+  for (int i = 0; i<angle; i++) {
+    OrzoDrop.write(dir? 60+i : 60+angle-i);
+    delay(10);
+  }
+}
 //with the camera centered over the plot, plant the seed, then return the rover to being camera centered over the plot
 void plantSeed() {
-  //move vacuum over plot
-  //vacuum on
-  //shake, with servos
-  //vacuum off
-  //move seed drop over plot
-  //drop seed
-  //SeedDrop.write(0);
-  //OrzoDrop.write(60);
-  //move orzo drop over plot
-  VacuumMountR.write(158); //vertical
-  VacuumMountL.write(30);
-  //VacuumMountR.write(0);
-  delay(1000); //opens all after this delay
-  VacuumMountR.write(158-45); //moves nose up
-  VacuumMountL.write(30+45);
-  //SeedDrop.write(50);
-  digitalWrite(45, LOW);
-  //OrzoDrop.write(160);
-  //drop orzo
-  //OrzoDrop.write(40);
-  //move camera over plot
+  moveNoseUp();
+  delay(200);
+  moveNoseUp(false);
+  delay(500);
+  digitalWrite(fan, HIGH);
+  delay(10000); //vacuum
+  digitalWrite(fan, LOW);
+  delay(500);
+  moveSeedOpen();
+  delay(500);
+  moveOrzoOpen();
+  delay(1000);
+  moveSeedOpen(false);
+  moveOrzoOpen(false);
+  delay(1000);
+  moveNoseUp();
+  delay(200);
+  moveNoseUp(false);
+
   delay(1000);
 }
 
