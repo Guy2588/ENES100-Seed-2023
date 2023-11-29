@@ -73,7 +73,7 @@ enum direction {
 //size constants in cm
 const float plotWidth = 8.3;
 const float cameraXDist = 0; //x distance of camera from center of rover
-const float cameraYDist = 7; //y distance of camera from front of rover
+const float cameraYDist = 10; //y distance of camera from front of rover
 const float vacuumXDist = 0;
 const float vacuumYDist = 7;
 const float riceDropXDist = 0;
@@ -100,7 +100,7 @@ int count = 0;
 
 void setup() {
   Serial.begin(9600);
-  Enes100.begin("Farmers\' Insurance", SEED, 10, Cam_Tx, Cam_Rx);
+  Enes100.begin("Farmers\' Insurance", SEED, 6, Cam_Tx, Cam_Rx);
   Enes100.println("Farmers\' Insurance successfully connected to vision system!");
   //setup h-bridge and motors
   //left side
@@ -399,11 +399,37 @@ void shakeALittle() {
 //with the camera centered over the plot, plant the seed, then return the rover to being camera centered over the plot
 void plantSeed() {
   Enes100.println("We are planting the seed.");
+  /*moveNoseUp(); //move nose up to get it out of the way when we turn around
   //since camera is on the back, we have to turn the rover backwards
   turnLeft(180);
   if (direction == 1) {
-    tryFixRotation();
+    tryFixRotation(90);
+  } else {
+    tryFixRotation(-90);
   }
+  moveDirDist(back, vacuumXDist-cameraXDist); //align the vacuum
+
+  moveNoseUp(false); //move nose down again
+  digitalWrite(fan, HIGH); //turns on fan
+  int angle = 0;
+  for (int i = 0; i<50; i++) { //arbitrary number of iterations to shake and succ
+    (angle - 5 >= -20)? angle -= 5 : angle = -20;
+    moveNoseUp(false, angle); //go down, but not so much that the servos can't handle it
+    //add turning stuff too later if needed
+    delay(100);
+    (angle + 3 >= -20)? angle += 3 : angle = -17;
+    moveNoseUp(true, angle);
+    delay(100);
+  }
+  digitalWrite(fan, LOW);
+  //tryFixRotation(float goalRot); //corrects rotation error caused from turning stuff to help succ
+
+  moveDirDist(front, vacuumXDist-seedDropXDist);
+  moveSeedOpen(); //drop seed
+  delay(300);
+
+
+
   //move vacuum over plot
   //vacuum on
   //shake, with servos
@@ -416,7 +442,7 @@ void plantSeed() {
   //drop orzo
   OrzoDrop.write(40);
   //move camera over plot
-  delay(1000);
+  delay(1000);*/
 }
 
 void mission() {
