@@ -50,6 +50,9 @@ const int vacuumMountR = 5;
 //fan control transitor
 const int fan = 45;
 
+//ringlight
+const int light = 47;
+
 
 //enums
 enum motor{
@@ -73,7 +76,7 @@ enum direction {
 //size constants in cm
 const float plotWidth = 8.3;
 const float cameraXDist = 0; //x distance of camera from center of rover
-const float cameraYDist = 10; //y distance of camera from front of rover
+const float cameraYDist = 8; //y distance of camera from front of rover
 const float vacuumXDist = 0;
 const float vacuumYDist = 7;
 const float riceDropXDist = 0;
@@ -407,7 +410,7 @@ void plantSeed() {
   } else {
     tryFixRotation(-90);
   }
-  moveDirDist(back, vacuumXDist-cameraXDist); //align the vacuum
+  moveDirDist(back, vacuumYDist-cameraYDist); //align the vacuum
 
   moveNoseUp(false); //move nose down again
   digitalWrite(fan, HIGH); //turns on fan
@@ -424,25 +427,23 @@ void plantSeed() {
   digitalWrite(fan, LOW);
   //tryFixRotation(float goalRot); //corrects rotation error caused from turning stuff to help succ
 
-  moveDirDist(front, vacuumXDist-seedDropXDist);
+  //SeedDrop.attach(seedDrop);
+  moveDirDist(front, vacuumYDist-seedDropYDist);
   moveSeedOpen(); //drop seed
   delay(300);
 
+  moveDirDist(front, seedDropYDist-riceDropYDist);
+  moveOrzoOpen(true);
+  delay(300);
 
-
-  //move vacuum over plot
-  //vacuum on
-  //shake, with servos
-  //vacuum off
-  //move seed drop over plot
-  //drop seed
-  SeedDrop.write(80);
-  //move orzo drop over plot
-  delay(1000);
-  //drop orzo
-  OrzoDrop.write(40);
-  //move camera over plot
-  delay(1000);*/
+  //reset position
+  moveDirDist(back, cameraYDist-riceDropYDist);
+  turnLeft(180);
+  if (direction == 1) {
+    tryFixRotation(-90);
+  } else {
+    tryFixRotation(90);
+  }*/
 }
 
 void mission() {
@@ -497,7 +498,7 @@ void mission() {
   //run check and plant for the first plot
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
-    Enes100.print("1st: Orzo");
+    Enes100.println("1st: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY())); //sends coordinates of the rover, will adjust later to send coordinates of the plot
@@ -515,7 +516,7 @@ void mission() {
     hasSeed = false;
     //realign camera to center of plot
   } else {
-    Enes100.print("1st: Rocks");
+    Enes100.println("1st: Rocks");
   }
   delay(2000);
   //move to second plot, precondition camera already above first plot
@@ -523,7 +524,7 @@ void mission() {
   //run check and plant for second plot
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
-    Enes100.print("2nd: Orzo");
+    Enes100.println("2nd: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
@@ -537,7 +538,7 @@ void mission() {
       //realign camera to center of plot
     }
   } else {
-    Enes100.print("2th: Rocks");
+    Enes100.println("2th: Rocks");
   }
   delay(2000);
   //if our first two happened to be orzo, we can leave and begin navigating
@@ -582,7 +583,7 @@ void mission() {
   //run check and plant for 3rd plot
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
-    Enes100.print("3th: Orzo");
+    Enes100.println("3th: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
@@ -596,7 +597,7 @@ void mission() {
       //realign camera to center of plot
     }
   } else {
-    Enes100.print("3th: Rocks");
+    Enes100.println("3th: Rocks");
   }
   delay(2000);
   //if we've transmitted 2 plots already, we can leave
@@ -625,7 +626,7 @@ void mission() {
   moveDirDist(right, plotWidth+2);
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
-    Enes100.print("4th: Orzo");
+    Enes100.println("4th: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
@@ -634,7 +635,7 @@ void mission() {
     }
     //you won't have a seed by the forth plot.
   } else {
-    Enes100.print("4th: Rocks");
+    Enes100.println("4th: Rocks");
   }
   delay(2000);
   //reset position
