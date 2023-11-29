@@ -398,6 +398,12 @@ void shakeALittle() {
 
 //with the camera centered over the plot, plant the seed, then return the rover to being camera centered over the plot
 void plantSeed() {
+  Enes100.println("We are planting the seed.");
+  //since camera is on the back, we have to turn the rover backwards
+  turnLeft(180);
+  if (direction == 1) {
+    tryFixRotation();
+  }
   //move vacuum over plot
   //vacuum on
   //shake, with servos
@@ -462,18 +468,18 @@ void mission() {
   updateUltrasonics(true, false, false);
   delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
-  /*tcs.getRGB(&red, &green, &blue);
-  int redInt = int(red);*/
+  //run check and plant for the first plot
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
     Enes100.print("1st: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
-      Enes100.mission(LOCATION, 'D'); //is this a valid call? no. Are the valid calls any better? also no.
+      Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY())); //sends coordinates of the rover, will adjust later to send coordinates of the plot
     } else {
-      Enes100.mission(LOCATION, 'B');
+      Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
     }
     //plant seed
+    plantSeed();
     //align vacuum with plot (assuming camera and vacuum are directly infront of each other)
     //moveDirDist(front, cameraYDist-vacuumYDist);
     //turn on vacuum
@@ -488,17 +494,19 @@ void mission() {
   delay(2000);
   //move to second plot, precondition camera already above first plot
   moveDirDist(right, plotWidth+2); //now camera should be above 2nd plot
+  //run check and plant for second plot
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
     Enes100.print("2nd: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
-      Enes100.mission(LOCATION, 'A');
+      Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
     } else {
-      Enes100.mission(LOCATION, 'C');
+      Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
     }
     if (hasSeed) {
       //plant seed
+      plantSeed();
       hasSeed = false;
       //realign camera to center of plot
     }
@@ -545,17 +553,19 @@ void mission() {
   updateUltrasonics(true, false, false);
   delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
+  //run check and plant for 3rd plot
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
     Enes100.print("3th: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
-      Enes100.mission(LOCATION, 'B');
+      Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
     } else {
-      Enes100.mission(LOCATION, 'D');
+      Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
     }
     if (hasSeed) {
       //plant seed
+      plantSeed();
       hasSeed = false;
       //realign camera to center of plot
     }
@@ -592,9 +602,9 @@ void mission() {
     Enes100.print("4th: Orzo");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
-      Enes100.mission(LOCATION, 'C');
+      Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
     } else {
-      Enes100.mission(LOCATION, 'A');
+      Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
     }
     //you won't have a seed by the forth plot.
   } else {
