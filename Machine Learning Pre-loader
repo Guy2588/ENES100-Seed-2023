@@ -1,0 +1,27 @@
+#include <Enes100.h>
+#include <math.h>
+
+const int Tx = 51;
+const int Rx = 52;
+
+void setup() {
+  Serial.begin(9600);
+  delay(2000);
+  Enes100.begin("Farmers\' Insurance", SEED, 6, Tx, Rx);
+  delay(2000);
+  Enes100.println("Sucessfully connected to the Vision System");
+}
+
+void loop() {
+  Enes100.print("X: ");
+  Enes100.print(Enes100.getX());
+  Enes100.print(" Y: ");
+  Enes100.print(Enes100.getY());
+  Enes100.print(" Rot: ");
+  Enes100.println(Enes100.getTheta());
+  Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY())); //basically a fancy print function?
+  delay(1000);
+  int value = Enes100.MLGetPrediction();
+  Enes100.println(value == 1? "orzo" : "rocks");
+  delay(1000);
+}
