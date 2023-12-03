@@ -1,3 +1,4 @@
+#include <Enes100.h>
 #include <math.h>
 #include <Servo.h>
 
@@ -8,63 +9,87 @@ Servo VacuumMountL;
 Servo VacuumMountR;
 const int seedDrop = 7;
 const int orzoDrop = 4;
-const int vacuumMountL = 5;
-const int vacuumMountR = 6;
+const int vacuumMountL = 6;
+const int vacuumMountR = 5;
 
 //fan control transitor
-const int fan = 8;
+const int fan = 45;
 
 void setup() {
-  pinMode(fan, OUTPUT);
-  SeedDrop.attach(seedDrop);
+  Serial.begin(9600);
+  //SeedDrop.attach(seedDrop);
   OrzoDrop.attach(orzoDrop);
   VacuumMountL.attach(vacuumMountL);
   VacuumMountR.attach(vacuumMountR);
+  //setup fan transistor
+  pinMode(fan, OUTPUT);
 }
-void moveNoseUp(bool dir = true, int angle = 60) {
-  for (int i = 0; i<angle; i++) {
-    VacuumMountR.write(dir? 160-i : 160-angle+i); //vertical
-    VacuumMountL.write(dir? 30+i : 30+angle-i); //vertical
-    delay(10);
+
+//moves nose up or down, default angle of 60 degrees, max angle of 150 and min of -20?
+void moveNoseUp(bool dir = true, int angle = 60, int delayVal = 10) {
+  for (int i = 0; angle>=0? i<angle : i>angle; angle>=0? i++ : i--) {
+    VacuumMountR.write(!dir? 160-i : 160-angle+i); //vertical
+    VacuumMountL.write(!dir? 30+i : 30+angle-i); //vertical
+    delay(delayVal);
   }
 }
-void moveSeedOpen(bool dir = true, int angle = 50) {
+//moves seed door open or closed by 70 degrees, max 180 min 0
+void moveSeedOpen(bool dir = true, int angle = 70) {
   for (int i = 0; i<angle; i++) {
     SeedDrop.write(dir? 0+i : 0+angle-i);
     delay(10);
   }
 }
+//moves orzo door open or closed by 100 degrees, max 120 min -58
 void moveOrzoOpen(bool dir = true, int angle = 100) {
   for (int i = 0; i<angle; i++) {
-    OrzoDrop.write(dir? 60+i : 60+angle-i);
+    OrzoDrop.write(dir? 58+i : 58+angle-i);
     delay(10);
   }
 }
-//with the camera centered over the plot, plant the seed, then return the rover to being camera centered over the plot
-void plantSeed() {
-  moveNoseUp();
-  delay(200);
-  moveNoseUp(false);
-  delay(500);
-  digitalWrite(fan, HIGH);
-  delay(5000); //vacuum
-  //move nose up and down to vacuum better
-  digitalWrite(fan, LOW);
-  delay(500);
-  moveSeedOpen();
-  delay(500);
-  moveOrzoOpen();
-  delay(1000);
-  moveSeedOpen(false);
-  moveOrzoOpen(false);
-  delay(1000);
-  moveNoseUp();
-  delay(200);
-  moveNoseUp(false);
 
-  delay(1000);
+void plantSeed() {
+  moveNoseUp(); //move nose up to get it out of the way when we turn around
+
+  moveNoseUp(false); //move nose down again
+  digitalWrite(fan, HIGH); //turns on fan
+  for (int i = 0; i<10; i++) { //arbitrary number of iterations to shake and succ
+    moveNoseUp(false, -20); //go down, but not so much that the servos can't handle it
+    //add turning stuff too later if needed
+    delay(500);
+    moveNoseUp(true, -20);
+    delay(500);
+  }
+  digitalWrite(fan, LOW);
+  //tryFixRotation(float goalRot); //corrects rotation error caused from turning stuff to help succ
+
+  SeedDrop.attach(seedDrop);
+  moveSeedOpen(); //drop seed
+  delay(700);
+  moveSeedOpen(false);
+  SeedDrop.detach();
+
+  moveOrzoOpen(true);
+  delay(1200);
+  moveOrzoOpen(false);
 }
 
 void loop() {
-  plantSeed();
+  OrzoDrop.write(58);
+  VacuumMountL.write(30);
+  VacuumMountR.write(160);
+  delay(1000);
+  //plantSeed();
+  digitalWrite(fan, HIGH); //turns on fan
+  moveNoseUp(false, -10, 3000);
+  moveNoseUp(true, -10);
+  /*for (int i = 0; i<10; i++) { //arbitrary number of iterations to shake and succ
+    moveNoseUp(false, -20); //go down, but not so much that the servos can't handle it
+    //add turning stuff too later if needed
+    delay(500);
+    moveNoseUp(true, -20);
+    delay(500);
+  }*/
+  digitalWrite(fan, LOW);
+  delay(5000);
 }
