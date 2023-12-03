@@ -78,11 +78,11 @@ const float plotWidth = 8.3;
 const float cameraXDist = 0; //x distance of camera from center of rover
 const float cameraYDist = 8; //y distance of camera from front of rover
 const float vacuumXDist = 0;
-const float vacuumYDist = 7;
+const float vacuumYDist = 22;
 const float riceDropXDist = 0;
-const float riceDropYDist = 3;
+const float riceDropYDist = 6;
 const float seedDropXDist = -4;
-const float seedDropYDist = 5;
+const float seedDropYDist = 8;
 const float roverWidth = 20.32;
 
 //other constants
@@ -103,7 +103,8 @@ int count = 0;
 
 void setup() {
   Serial.begin(9600);
-  Enes100.begin("Farmers\' Insurance", SEED, 6, Cam_Tx, Cam_Rx);
+  delay(2000); //to get the people out of the way, cus if it starts with Aruco marker blocked, it'll spazz out
+  Enes100.begin("Farmers\' Insurance", SEED, 205, Cam_Tx, Cam_Rx);
   Enes100.println("Farmers\' Insurance successfully connected to vision system!");
   //setup h-bridge and motors
   //left side
@@ -128,13 +129,11 @@ void setup() {
   pinMode(US_right_trig, OUTPUT);
   pinMode(US_right_echo, INPUT);
   //setup servos (or perhaps don't attach these just yet, doing so messes up everything else)
-  /*SeedDrop.attach(seedDrop);
-  OrzoDrop.attach(orzoDrop);
+  //SeedDrop.attach(seedDrop);
+  /*OrzoDrop.attach(orzoDrop);
   OrzoDrop.write(60);
   VacuumMountL.attach(vacuumMountL);
-  VacuumMountL.write(30);
-  VacuumMountR.attach(vacuumMountR);
-  VacuumMountR.write(160);*/
+  VacuumMountR.attach(vacuumMountR);*/
   //setup fan transistor
   pinMode(fan, OUTPUT);
 }
@@ -184,29 +183,29 @@ void stopMove() {
   digitalWrite(HR_B_CW, LOW);
   digitalWrite(HR_B_CCW, LOW);
 }
-
+/*
 //moves nose up or down, default angle of 60 degrees, max angle of 150 and min of -20?
-void moveNoseUp(bool dir = true, int angle = 60) {
-  for (int i = 0; i<angle; i++) {
-    VacuumMountR.write(dir? 160-i : 160-angle+i); //vertical
-    VacuumMountL.write(dir? 30+i : 30+angle-i); //vertical
-    delay(10);
+void moveNoseUp(bool dir = true, int angle = 60, int delayVal = 10) {
+  for (int i = 0; angle>=0? i<angle : i>angle; angle>=0? i++ : i--) {
+    VacuumMountR.write(!dir? 160-i : 160-angle+i); //vertical
+    VacuumMountL.write(!dir? 30+i : 30+angle-i); //vertical
+    delay(delayVal);
   }
 }
-//moves seed door open or closed by 50 degrees, max 180 min 0
-void moveSeedOpen(bool dir = true, int angle = 50) {
+//moves seed door open or closed by 70 degrees, max 180 min 0
+void moveSeedOpen(bool dir = true, int angle = 70) {
   for (int i = 0; i<angle; i++) {
     SeedDrop.write(dir? 0+i : 0+angle-i);
     delay(10);
   }
 }
-//moves orzo door open or closed by 100 degrees, max 120 min -60
+//moves orzo door open or closed by 100 degrees, max 120 min -58
 void moveOrzoOpen(bool dir = true, int angle = 100) {
   for (int i = 0; i<angle; i++) {
-    OrzoDrop.write(dir? 60+i : 60+angle-i);
+    OrzoDrop.write(dir? 58+i : 58+angle-i);
     delay(10);
   }
-}
+}*/
 
 //updates running ultrasonic values, but only the ones you want, for whatever reason
 void updateUltrasonics(bool front = true, bool left = true, bool right = true) {
@@ -400,9 +399,8 @@ void shakeALittle() {
 }
 
 //with the camera centered over the plot, plant the seed, then return the rover to being camera centered over the plot
-void plantSeed() {
-  Enes100.println("We are planting the seed.");
-  /*moveNoseUp(); //move nose up to get it out of the way when we turn around
+void plantSeed(int direction) {
+  Enes100.println("We are planting the seed.");/*
   //since camera is on the back, we have to turn the rover backwards
   turnLeft(180);
   if (direction == 1) {
@@ -414,27 +412,30 @@ void plantSeed() {
 
   moveNoseUp(false); //move nose down again
   digitalWrite(fan, HIGH); //turns on fan
-  int angle = 0;
-  for (int i = 0; i<50; i++) { //arbitrary number of iterations to shake and succ
-    (angle - 5 >= -20)? angle -= 5 : angle = -20;
-    moveNoseUp(false, angle); //go down, but not so much that the servos can't handle it
-    //add turning stuff too later if needed
-    delay(100);
-    (angle + 3 >= -20)? angle += 3 : angle = -17;
-    moveNoseUp(true, angle);
-    delay(100);
+  for (int i = 0; -10>=0? i<-10 : i>-10; -10>=0? i++ : i--) {
+    VacuumMountR.write(!dir? 160-i : 160-(-10)+i); //vertical
+    VacuumMountL.write(!dir? 30+i : 30+(-10)-i); //vertical
+    for (int j=0; j<10; j++) {
+      turnLeft(5);
+      delay(100);
+      turnRight(10);
+      delay(100);
+      turnLeft(5);
+      delay(100);
+    }
   }
   digitalWrite(fan, LOW);
-  //tryFixRotation(float goalRot); //corrects rotation error caused from turning stuff to help succ
+  tryFixRotation(direction == 1? 90 : -90); //corrects rotation error caused from turning stuff to help succ
 
-  //SeedDrop.attach(seedDrop);
   moveDirDist(front, vacuumYDist-seedDropYDist);
+  SeedDrop.attach(seedDrop);
   moveSeedOpen(); //drop seed
-  delay(300);
+  delay(1200);
+  SeedDrop.detach();
 
   moveDirDist(front, seedDropYDist-riceDropYDist);
   moveOrzoOpen(true);
-  delay(300);
+  delay(1500);
 
   //reset position
   moveDirDist(back, cameraYDist-riceDropYDist);
@@ -495,6 +496,18 @@ void mission() {
   updateUltrasonics(true, false, false);
   delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
+  delay(1000);
+  turnLeft(180);
+  if (Enes100.getY() > 1) {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(-90);
+  } else {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(90);
+  } //turns it around so the camera faces
+  //moveDirDist(back, 2); //moves it a little closer
   //run check and plant for the first plot
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
@@ -506,7 +519,7 @@ void mission() {
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()));
     }
     //plant seed
-    plantSeed();
+    plantSeed(Enes100.getY() > 1? 1 : -1);
     //align vacuum with plot (assuming camera and vacuum are directly infront of each other)
     //moveDirDist(front, cameraYDist-vacuumYDist);
     //turn on vacuum
@@ -520,7 +533,7 @@ void mission() {
   }
   delay(2000);
   //move to second plot, precondition camera already above first plot
-  moveDirDist(right, plotWidth+2); //now camera should be above 2nd plot
+  moveDirDist(left, plotWidth+2); //now camera should be above 2nd plot
   //run check and plant for second plot
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
@@ -533,7 +546,7 @@ void mission() {
     }
     if (hasSeed) {
       //plant seed
-      plantSeed();
+      plantSeed(Enes100.getY() > 1? 1 : -1);
       hasSeed = false;
       //realign camera to center of plot
     }
@@ -541,11 +554,7 @@ void mission() {
     Enes100.println("2th: Rocks");
   }
   delay(2000);
-  //if our first two happened to be orzo, we can leave and begin navigating
-  if (plantablePlots == 2) {
-    return;
-  }
-  //move to 3rd plot
+  turnRight(180);
   if (Enes100.getY() > 1) {
     Enes100.getTheta();
     delay(1000);
@@ -555,6 +564,11 @@ void mission() {
     delay(1000);
     tryFixRotation(-90);
   }
+  //if our first two happened to be orzo, we can leave and begin navigating
+  if (plantablePlots == 2) {
+    return;
+  }
+  //move to 3rd plot
   moveDirDist(right, plotWidth/2+roverWidth/2+5); //5 cm away from plot
   if (Enes100.getY() > 1) {
     Enes100.getTheta();
@@ -580,6 +594,16 @@ void mission() {
   updateUltrasonics(true, false, false);
   delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
+  turnRight(180);
+  if (Enes100.getY() > 1) {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(90);
+  } else {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(-90);
+  } //rotates rover for camera to be over plots
   //run check and plant for 3rd plot
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
@@ -592,7 +616,7 @@ void mission() {
     }
     if (hasSeed) {
       //plant seed
-      plantSeed();
+      plantSeed(Enes100.getY() > 1? -1 : 1);
       hasSeed = false;
       //realign camera to center of plot
     }
@@ -601,7 +625,7 @@ void mission() {
   }
   delay(2000);
   //if we've transmitted 2 plots already, we can leave
-  if (plantablePlots == 2) {
+  /*if (plantablePlots == 2) {
     moveDirDist(left, 2+plotWidth/2+roverWidth/2);
     moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist+20);
     moveDirDist(right, 2+plotWidth+roverWidth/2);
@@ -612,18 +636,18 @@ void mission() {
       tryFixRotation(-90);
     }
     return;
-  }
+  }*/
   if (Enes100.getY() > 1) {
     Enes100.getTheta();
     delay(1000);
-    tryFixRotation(-90);
+    tryFixRotation(90);
   } else {
     Enes100.getTheta();
     delay(1000);
-    tryFixRotation(90);
+    tryFixRotation(-90);
   }
   //move to 4th plot, precondition camera already aligned with 3rd plot
-  moveDirDist(right, plotWidth+2);
+  moveDirDist(left, plotWidth+2);
   if (Enes100.MLGetPrediction() == orzo) { //orzo
     plantablePlots++;
     Enes100.println("4th: Orzo");
@@ -639,6 +663,16 @@ void mission() {
   }
   delay(2000);
   //reset position
+  turnRight(180);
+  if (Enes100.getY() > 1) {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(-90);
+  } else {
+    Enes100.getTheta();
+    delay(1000);
+    tryFixRotation(90);
+  }
   moveDirDist(right, plotWidth/2+roverWidth/2+5); //5 cm away from plot
   moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist+20); //10 cm from plot
   moveDirDist(left, 5+plotWidth+roverWidth/2);
@@ -655,6 +689,10 @@ void mission() {
 }
 
 void loop () {
+  //sets servo values
+  /*OrzoDrop.write(58);
+  VacuumMountL.write(60);
+  VacuumMountR.write(130);*/
   //preloads theta and Y values into cache
   Enes100.getTheta();
   Enes100.getY();
@@ -702,6 +740,7 @@ void loop () {
     //stafe to center
     moveRight(1, Y);
   }
+  //moveNoseUp(false);
   moveForward(1, X);
   //Enes100.println(Enes100.getY());
   leftTooClose = 0;
