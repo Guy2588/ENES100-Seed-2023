@@ -132,9 +132,7 @@ void setup() {
   OrzoDrop.attach(orzoDrop);
   OrzoDrop.write(60);
   VacuumMountL.attach(vacuumMountL);
-  VacuumMountL.write(30);
   VacuumMountR.attach(vacuumMountR);
-  VacuumMountR.write(160);
   //setup fan transistor
   pinMode(fan, OUTPUT);
 }
@@ -688,8 +686,8 @@ void mission() {
 void loop () {
   //sets servo values
   OrzoDrop.write(58);
-  VacuumMountL.write(30);
-  VacuumMountR.write(160);
+  VacuumMountL.write(60);
+  VacuumMountR.write(130);
   //preloads theta and Y values into cache
   Enes100.getTheta();
   Enes100.getY();
@@ -737,6 +735,7 @@ void loop () {
     //stafe to center
     moveRight(1, Y);
   }
+  moveNoseUp(false);
   moveForward(1, X);
   //Enes100.println(Enes100.getY());
   leftTooClose = 0;
