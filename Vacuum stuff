@@ -1,0 +1,246 @@
+#include <Enes100.h>
+#include <math.h>
+#include <Servo.h>
+
+//H-bridge
+//left side
+//left back
+const int HLpwmB = 13;
+const int HL_B_CW = 24; //set true for clockwise
+const int HL_B_CCW = 25; //set true for counterclockwise
+//left front
+const int HLpwmF = 12;
+const int HL_F_CW = 22;
+const int HL_F_CCW = 23;
+
+//right side
+//right back
+const int HRpwmB = 10;
+const int HR_B_CW = 28;
+const int HR_B_CCW = 29;
+//right front
+const int HRpwmF = 9;
+const int HR_F_CW = 27;
+const int HR_F_CCW = 26;
+
+//servos
+Servo SeedDrop;
+Servo OrzoDrop;
+Servo VacuumMountL;
+Servo VacuumMountR;
+const int seedDrop = 7;
+const int orzoDrop = 4;
+const int vacuumMountL = 6;
+const int vacuumMountR = 5;
+
+//fan control transitor
+const int fan = 45;
+
+//size constants in cm
+const float plotWidth = 8.3;
+const float cameraXDist = 0; //x distance of camera from center of rover
+const float cameraYDist = 8; //y distance of camera from front of rover
+const float vacuumXDist = 0;
+const float vacuumYDist = 22;
+const float riceDropXDist = 0;
+const float riceDropYDist = 6;
+const float seedDropXDist = -4;
+const float seedDropYDist = 8;
+const float roverWidth = 20.32;
+
+enum motor{
+  LF,
+  LB,
+  RB,
+  RF
+};
+enum direction {
+  front,
+  left,
+  right,
+  back
+};
+
+void setup() {
+  Serial.begin(9600);
+  //setup h-bridge and motors
+  //left side
+	pinMode(HLpwmB, OUTPUT); //speed for motor 1
+	pinMode(HLpwmF, OUTPUT); //speed for motor 2
+	pinMode(HL_B_CW, OUTPUT);
+	pinMode(HL_B_CCW, OUTPUT);
+	pinMode(HL_F_CW, OUTPUT);
+	pinMode(HL_F_CCW, OUTPUT);
+  //right side
+	pinMode(HRpwmB, OUTPUT); //speed for motor 3
+	pinMode(HRpwmF, OUTPUT); //speed for motor 4
+	pinMode(HR_B_CW, OUTPUT);
+	pinMode(HR_B_CCW, OUTPUT);
+	pinMode(HR_F_CW, OUTPUT);
+	pinMode(HR_F_CCW, OUTPUT);
+  //SeedDrop.attach(seedDrop);
+  OrzoDrop.attach(orzoDrop);
+  VacuumMountL.attach(vacuumMountL);
+  VacuumMountR.attach(vacuumMountR);
+  //setup fan transistor
+  pinMode(fan, OUTPUT);
+}
+
+//sets the specified motor to a speed and direction
+void setMotor(motor motor, int speed, bool CW) {
+  //set motor speed
+  if (motor == LF) {
+    analogWrite(HLpwmF, speed);
+  } else if (motor == LB) {
+    analogWrite(HLpwmB, speed);
+  } else if (motor == RF) {
+    analogWrite(HRpwmF, speed);
+  } else if (motor == RB) {
+    analogWrite(HRpwmB, speed);
+  }
+  //set motor direction
+  if (motor == LF) {
+    digitalWrite(HL_F_CW, CW? HIGH:LOW);
+	  digitalWrite(HL_F_CCW, CW? LOW:HIGH);
+  } else if (motor == LB) {
+    digitalWrite(HL_B_CW, CW? HIGH:LOW);
+	  digitalWrite(HL_B_CCW, CW? LOW:HIGH);
+  } else if (motor == RF) {
+    digitalWrite(HR_F_CW, CW? HIGH:LOW);
+	  digitalWrite(HR_F_CCW, CW? LOW:HIGH);
+  } else if (motor == RB) {
+    digitalWrite(HR_B_CW, CW? HIGH:LOW);
+	  digitalWrite(HR_B_CCW, CW? LOW:HIGH);
+  }
+}
+
+//stops all motor movement
+void stopMove() {
+  //set speed to 0
+	analogWrite(HLpwmF, 0);
+  analogWrite(HLpwmB, 0);
+  analogWrite(HRpwmF, 0);
+  analogWrite(HRpwmB, 0);
+  //set direction to 0
+  digitalWrite(HL_F_CW, LOW);
+  digitalWrite(HL_F_CCW, LOW);
+  digitalWrite(HL_B_CW, LOW);
+  digitalWrite(HL_B_CCW, LOW);
+  digitalWrite(HR_F_CW, LOW);
+  digitalWrite(HR_F_CCW, LOW);
+  digitalWrite(HR_B_CW, LOW);
+  digitalWrite(HR_B_CCW, LOW);
+}
+
+//moves nose up or down, default angle of 48 degrees, max angle of 150 and min of -20?
+void moveNoseUp(bool dir = true, int angle = 48, int delayVal = 10, int startAngle = 0) {
+  for (int i = 0; angle>=0? i<angle : i>angle; angle>=0? i++ : i--) {
+    VacuumMountR.write(dir? 150-startAngle-i : 150-startAngle-angle+i); //vertical
+    VacuumMountL.write(dir? 40+startAngle+i : 40+startAngle+angle-i); //vertical
+    delay(delayVal);
+  }
+}
+//moves seed door open or closed by 70 degrees, max 180 min 0
+void moveSeedOpen(bool dir = true, int angle = 70) {
+  SeedDrop.attach(seedDrop);
+  for (int i = 0; i<angle; i++) {
+    SeedDrop.write(dir? 0+i : 0+angle-i);
+    delay(10);
+  }
+  SeedDrop.detach();
+}
+//moves orzo door open or closed by 100 degrees, max 120 min -50
+void moveOrzoOpen(bool dir = true, int angle = 100) {
+  for (int i = 0; i<angle; i++) {
+    OrzoDrop.write(dir? 50+i : 50+angle-i);
+    delay(10);
+  }
+}
+
+//moves rover in any direction about a certain distance in cm, no obstacle sensing
+void moveDirDist(direction direction, float distance) {
+  if (direction == back) {
+    setMotor(LF, 255, false);
+    setMotor(RF, 255, true);
+    setMotor(LB, 255, false);
+    setMotor(RB, 255, true);
+  } else if (direction == front) {
+    setMotor(LF, 255, true);
+    setMotor(RF, 255, false);
+    setMotor(LB, 255, true);
+    setMotor(RB, 255, false);
+  } else if (direction == left) {
+    setMotor(LF, 255, false);
+    setMotor(RF, 255, false);
+    setMotor(LB, 255, true);
+    setMotor(RB, 255, true);
+  } else if (direction == right) {
+    setMotor(LF, 255, true);
+    setMotor(RF, 255, true);
+    setMotor(LB, 255, false);
+    setMotor(RB, 255, false);
+  }
+  delay(distance*50);
+  stopMove();
+}
+
+//turns rover left a certain number of degrees, 90 as default, based on timing
+void turnLeft(int degrees = 90) {
+  setMotor(LF, 255, false);
+  setMotor(RF, 255, false);
+  setMotor(LB, 255, false);
+  setMotor(RB, 255, false);
+  delay(degrees*10);
+  stopMove();
+}
+
+//turns rover right a certain number of degrees, 90 as default, based on timing
+void turnRight(int degrees = 90) {
+  setMotor(LF, 255, true);
+  setMotor(RF, 255, true);
+  setMotor(LB, 255, true);
+  setMotor(RB, 255, true);
+  delay(degrees*10);
+  stopMove();
+}
+
+void plantSeed() {
+  moveNoseUp(); //move nose up to get it out of the way when we turn around
+  delay(3000);
+  moveNoseUp(false); //move nose down again
+  delay(3000);
+  digitalWrite(fan, HIGH); //turns on fan
+  for (int i = 0; i<60; i++) { //arbitrary number of iterations to shake and succ
+    moveNoseUp(true, -30-(int)(i/10), 20, 20); //go down, but not so much that the servos can't handle it, revered direction (up is down) cus angle is negative
+    //add turning stuff too later if needed
+    turnLeft(2);
+    delay(200);
+    turnRight(4);
+    delay(200);
+    turnLeft(2);
+    delay(200);
+    moveNoseUp(false, -30-(int)(i/10), 20, 20); 
+    delay(50);
+  }
+  digitalWrite(fan, LOW);
+  //tryFixRotation(float goalRot); //corrects rotation error caused from turning stuff to help succ
+
+  moveDirDist(front, vacuumYDist-seedDropYDist-2);
+  moveSeedOpen(); //drop seed
+  delay(1500);
+  moveSeedOpen(false);
+
+  moveDirDist(front, seedDropYDist-riceDropYDist+2);
+  moveOrzoOpen(true);
+  delay(1500);
+  moveOrzoOpen(false);
+}
+
+void loop() {
+  OrzoDrop.write(50);
+  VacuumMountL.write(40);
+  VacuumMountR.write(150);
+  delay(1000);
+  plantSeed();
+  delay(500000);
+}
