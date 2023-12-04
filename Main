@@ -199,10 +199,10 @@ void moveSeedOpen(bool dir = true, int angle = 70) {
     delay(10);
   }
 }
-//moves orzo door open or closed by 100 degrees, max 120 min -58
+//moves orzo door open or closed by 100 degrees, max 120 min -50
 void moveOrzoOpen(bool dir = true, int angle = 100) {
   for (int i = 0; i<angle; i++) {
-    OrzoDrop.write(dir? 58+i : 58+angle-i);
+    OrzoDrop.write(dir? 50+i : 50+angle-i);
     delay(10);
   }
 }*/
@@ -492,7 +492,7 @@ void mission() {
   delay(1000);
   //move to first plot
   //moveDirDist(right, plotWidth/2+cameraXDist); //align camera X
-  moveDirDist(left, plotWidth/2);
+  moveDirDist(left, plotWidth/2+2.5);
   updateUltrasonics(true, false, false);
   delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
@@ -569,7 +569,7 @@ void mission() {
     return;
   }
   //move to 3rd plot
-  moveDirDist(right, plotWidth/2+roverWidth/2+5); //5 cm away from plot
+  moveDirDist(right, plotWidth/2+roverWidth/2+7); //7 cm away from plot
   if (Enes100.getY() > 1) {
     Enes100.getTheta();
     delay(1000);
@@ -590,7 +590,7 @@ void mission() {
     delay(1000);
     tryFixRotation(90);
   }
-  moveDirDist(right, plotWidth/2+15); //align camera X
+  moveDirDist(right, plotWidth/2+17); //align camera X
   updateUltrasonics(true, false, false);
   delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
@@ -690,7 +690,7 @@ void mission() {
 
 void loop () {
   //sets servo values
-  /*OrzoDrop.write(58);
+  /*OrzoDrop.write(50);
   VacuumMountL.write(60);
   VacuumMountR.write(130);*/
   //preloads theta and Y values into cache
