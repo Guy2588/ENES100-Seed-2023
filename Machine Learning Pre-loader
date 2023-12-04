@@ -22,6 +22,6 @@ void loop() {
   Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY())); //basically a fancy print function?
   delay(1000);
   int value = Enes100.MLGetPrediction();
-  Enes100.println(value == 1? "orzo" : "rocks");
+  Enes100.println(value == 0? "orzo" : "rocks");
   delay(1000);
 }
