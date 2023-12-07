@@ -55,9 +55,8 @@ const int fan = 45;
 
 
 //color sensor
-#define commonAnode true
 byte gammatable[256];
-//Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
 float red, green, blue;
 
 
@@ -111,8 +110,8 @@ int count = 0;
 
 void setup() {
   Serial.begin(9600);
-  delay(2000); //to get the people out of the way, cus if it starts with Aruco marker blocked, it'll spazz out
-  Enes100.begin("Farmers\' Insurance", SEED, 212, Cam_Tx, Cam_Rx);
+  delay(2000); //to get the people out of the way, cus if it starts with Aruco blocked, it'll spazz out
+  Enes100.begin("Farmers\' Insurance", SEED, 206, Cam_Tx, Cam_Rx);
   Enes100.println("Farmers\' Insurance successfully connected to vision system!");
   //setup h-bridge and motors
   //left side
@@ -144,28 +143,19 @@ void setup() {
   //setup fan transistor
   pinMode(fan, OUTPUT);
   //color sensor
-  //tcs.begin();
-  #if defined(ARDUINO_ARCH_ESP32)
-#else
-#endif
+  tcs.begin();
 for (int i = 0; i < 256; i++) {
     float x = i;
     x /= 255;
     x = pow(x, 2.5);
     x *= 255;
-
-    if (commonAnode) {
-      gammatable[i] = 255 - x;
-    } else {
-      gammatable[i] = x;
-    }
     //Serial.println(gammatable[i]);
   }
 }
 
 //color sensor stuff idk
 boolean getPrediction() {
-  //tcs.getRGB(&red, &green, &blue);
+  tcs.getRGB(&red, &green, &blue);
     int redInt = int(red);
     delay(50);
     Enes100.print("red val: ");
@@ -458,8 +448,12 @@ void plantSeed(int direction) {
   //since camera is on the back, we have to turn the rover backwards
   turnLeft(180);
   if (direction == 1) {
+    Enes100.getTheta();
+    delay(1000);
     tryFixRotation(90);
   } else {
+    Enes100.getTheta();
+    delay(1000);
     tryFixRotation(-90);
   }
   moveDirDist(back, vacuumYDist-cameraYDist); //align the vacuum
@@ -497,8 +491,12 @@ void plantSeed(int direction) {
   moveDirDist(back, cameraYDist-riceDropYDist);
   turnLeft(180);
   if (direction == 1) {
+    Enes100.getTheta();
+    delay(1000);
     tryFixRotation(-90);
   } else {
+    Enes100.getTheta();
+    delay(1000);
     tryFixRotation(90);
   }
 }
@@ -530,7 +528,7 @@ void mission() {
   delay(1000);
 
   //move to first plot
-  moveDirDist(left, plotWidth/2+2);
+  moveDirDist(left, plotWidth/2+2); //marker
 
   updateUltrasonics(true, false, false);
   delay(500);
@@ -551,7 +549,7 @@ void mission() {
   moveDirDist(back, 3); //moves it a little closer
 
   //run check and plant for the first plot
-  if (/*getPrediction()*/true) { //orzo
+  if (getPrediction()) { //orzo
     plantablePlots++;
     Enes100.println("1st: Orzo");
     //tell them that this plot is orzo
@@ -576,10 +574,10 @@ void mission() {
   delay(2000);
 
   //move to second plot, precondition camera already above first plot
-  moveDirDist(left, plotWidth+4); //now camera should be above 2nd plot
+  moveDirDist(left, plotWidth+4); //now camera should be above 2nd plot -- marker
 
   //run check and plant for second plot
-  if (/*getPrediction()*/true) { //orzo
+  if (getPrediction()) { //orzo
     Enes100.println("2nd: Orzo");
     plantablePlots++;
     //tell them that this plot is orzo
@@ -614,7 +612,7 @@ void mission() {
     return;
   }
   //move to 3rd plot
-  moveDirDist(right, plotWidth/2+roverWidth/2+9); //9 cm away from plot
+  moveDirDist(right, plotWidth/2+roverWidth/2+9); //9 cm away from plot -- marker
   if (Enes100.getY() > 1) {
     Enes100.getTheta();
     delay(1000);
@@ -624,7 +622,7 @@ void mission() {
     delay(1000);
     tryFixRotation(-90);
   }
-  moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist+24); //24 cm away from plot
+  moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist+24); //24 cm away from plot -- marker
   turnLeft(180);
   if (Enes100.getY() > 1) {
     Enes100.getTheta();
@@ -635,7 +633,7 @@ void mission() {
     delay(1000);
     tryFixRotation(90);
   }
-  moveDirDist(right, plotWidth/2+19+2); //align camera X
+  moveDirDist(right, plotWidth/2+19+2); //align camera X -- marker
   updateUltrasonics(true, false, false);
   delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
@@ -693,6 +691,7 @@ void mission() {
     tryFixRotation(-90);
   }
   //move to 4th plot, precondition camera already aligned with 3rd plot
+  moveDirDist(left, plotWidth+3); //marker
   if (getPrediction()) { //orzo
     plantablePlots++;
     Enes100.println("4th: Orzo");
@@ -718,9 +717,9 @@ void mission() {
     delay(1000);
     tryFixRotation(90);
   }
-  moveDirDist(right, plotWidth/2+roverWidth/2+8); //8 cm away from plot
-  moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist+28); //10 cm from plot
-  moveDirDist(left, 5+plotWidth+roverWidth/2);
+  moveDirDist(right, plotWidth/2+roverWidth/2+9); //8 cm away from plot -- marker
+  moveDirDist(front, 2*plotWidth+roverWidth+cameraYDist+30); //10 cm from plot
+  moveDirDist(left, 9+plotWidth+roverWidth/2);
   turnLeft(180);
   if (Enes100.getY() > 1) {
     Enes100.getTheta();
@@ -736,8 +735,8 @@ void mission() {
 void loop () {
   //sets servo values
   OrzoDrop.write(50);
-  VacuumMountL.write(40);
-  VacuumMountR.write(150);
+  VacuumMountL.write(60);
+  VacuumMountR.write(130);
   //preloads theta and Y values into cache
   Enes100.getTheta();
   Enes100.getY();
@@ -788,10 +787,16 @@ void loop () {
   //moveNoseUp(false);
   moveForward(1, X);
   //Enes100.println(Enes100.getY());
-  leftTooClose = 0;
+  moveLeft();
+  moveDirDist(left, 20);
+  moveForward();
+  moveDirDist(right, 50);
+
+  /*leftTooClose = 0;
   moveLeft(1.95, Y); //hug the wall, but since ultrasonics can't get close enough, use vision system (hopefully it works)
   leftTooClose = 20;
-  //Enes100.println(Enes100.getY());
+  //Enes100.println(Enes100.getY());*/
+
   /*
   //called to relevantize following conditional
   updateUltrasonics();
@@ -802,12 +807,14 @@ void loop () {
       moveRight();
     }
   }*/
-  tryFixRotation(0); //should I preload theta here?
+
+  /*tryFixRotation(0); //should I preload theta here?
   moveForward(1.9, X);
   tryFixRotation(0); //in case of more strafing
   moveForward(2.9, X);
   //move under limbo
-  moveRight(1.5, Y);
+  moveRight(1.5, Y);*/
+  
   moveForward();
   delay(600000);
 }
