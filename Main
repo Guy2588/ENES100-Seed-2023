@@ -100,6 +100,7 @@ const float marginOfError = 5;
 const int US_count_thresh = 4;
 const int orzo = 0;
 const int cutoff = 94; //it must be redder than 94 to be orzo
+float tempVal = -1.0;
 
 //distance variables (in cm)
 float US_front_dist;
@@ -111,7 +112,7 @@ int count = 0;
 void setup() {
   Serial.begin(9600);
   delay(2000); //to get the people out of the way, cus if it starts with Aruco blocked, it'll spazz out
-  Enes100.begin("Farmers\' Insurance", SEED, 206, Cam_Tx, Cam_Rx);
+  Enes100.begin("Farmers\' Insurance", SEED, 5, Cam_Tx, Cam_Rx);
   Enes100.println("Farmers\' Insurance successfully connected to vision system!");
   //setup h-bridge and motors
   //left side
@@ -157,11 +158,17 @@ for (int i = 0; i < 256; i++) {
 boolean getPrediction() {
   tcs.getRGB(&red, &green, &blue);
     int redInt = int(red);
+    int greenInt = int(green);
+    int blueInt = int(blue);
     delay(50);
     Enes100.print("red val: ");
   Enes100.print(redInt);
   Enes100.print(", cutoff is: ");
   Enes100.println(cutoff);
+  Enes100.print("green val: ");
+  Enes100.print(greenInt);
+  Enes100.print(", blue val: ");
+  Enes100.println(blueInt);
 
     if (redInt >= cutoff) {
       return true;
@@ -419,26 +426,15 @@ void turnRight(int degrees = 90) {
 
 //tries to align rover rotation to goal rotation (degrees) by checking itself with the vision system
 void tryFixRotation(float goalRot) {
+  if(!Enes100.isVisible()) {
+    tryFixRotation(goalRot);
+    return;
+  }
   float currentDeg = Enes100.getTheta() * 57296/1000;
   if (currentDeg > goalRot) {
     turnRight(currentDeg-goalRot);
   } else if (currentDeg < goalRot) {
     turnLeft(goalRot-currentDeg);
-  }
-}
-
-//prereq: facing towards mission site, X coord = 0.55
-void moveToMissionSite() {
-
-}
-
-//shakes the rover a little to help succ
-void shakeALittle() {
-  for (int i=0; i<5; i++) {
-    moveDirDist(front, 0.5);
-    moveDirDist(right, 0.5);
-    moveDirDist(back, 0.5);
-    moveDirDist(left, 0.5);
   }
 }
 
@@ -510,30 +506,31 @@ void mission() {
     tryFixRotation(90);
     Enes100.getX();//precache
     delay(1000);
-    if (Enes100.getX() > 0.45) {
-      moveDirDist(left, (Enes100.getX()-0.45)*100);
-    } else if (Enes100.getX() < 0.45) {
-      moveDirDist(right, (0.45-Enes100.getX())*100);
+    if (Enes100.getX() > 0.47) {
+      moveDirDist(left, (Enes100.getX()-0.47)*100);
+    } else if (Enes100.getX() < 0.47) {
+      moveDirDist(right, (0.47-Enes100.getX())*100);
     }
   } else {
     tryFixRotation(-90);
     Enes100.getX();//precache
     delay(1000);
-    if (Enes100.getX() > 0.45) {
-      moveDirDist(right, (Enes100.getX()-0.45)*100);
-    } else if (Enes100.getX() < 0.45) {
-      moveDirDist(left, (0.45-Enes100.getX())*100);
+    if (Enes100.getX() > 0.47) {
+      moveDirDist(right, (Enes100.getX()-0.47)*100);
+    } else if (Enes100.getX() < 0.47) {
+      moveDirDist(left, (0.47-Enes100.getX())*100);
     }
   }
   delay(1000);
 
   //move to first plot
-  moveDirDist(left, plotWidth/2+2); //marker
+  moveDirDist(left, plotWidth/2+1.5); //marker
 
   updateUltrasonics(true, false, false);
   delay(500);
   moveDirDist(front, US_front_dist-cameraYDist+plotWidth/2); //align camera Y
 
+  Enes100.getY(); //precache
   delay(1000);
   turnLeft(180);
   if (Enes100.getY() > 1) {
@@ -546,16 +543,18 @@ void mission() {
     tryFixRotation(90);
   } //turns it around so the camera faces
 
-  moveDirDist(back, 3); //moves it a little closer
+  moveDirDist(back, 3.5); //moves it a little closer
 
   //run check and plant for the first plot
   if (getPrediction()) { //orzo
     plantablePlots++;
-    Enes100.println("1st: Orzo");
+    Enes100.print("1st: Orzo ");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
+      Enes100.println("(plot D)");
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()+0.18)); //sends coordinates of the rover, will adjust later to send coordinates of the plot
     } else {
+      Enes100.println("(plot B)");
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()-0.18));
     }
     //plant seed
@@ -578,12 +577,14 @@ void mission() {
 
   //run check and plant for second plot
   if (getPrediction()) { //orzo
-    Enes100.println("2nd: Orzo");
+    Enes100.print("2nd: Orzo ");
     plantablePlots++;
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
+      Enes100.println("(plot A)");
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()+0.18));
     } else {
+      Enes100.println("(plot C)");
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()-0.18));
     }
     if (hasSeed) {
@@ -598,21 +599,26 @@ void mission() {
   delay(2000);
   moveDirDist(front, 3);
   turnRight(180);
-  if (Enes100.getY() > 1) {
+  if (Enes100.getY() > 1) { //moving right based on vision system could get more accurate results so that the last 2 plots are lined up right
     Enes100.getTheta();
+    Enes100.getX();
     delay(1000);
     tryFixRotation(90);
+    moveDirDist(right, (0.735-Enes100.getX())*100);
   } else {
     Enes100.getTheta();
+    Enes100.getX();
     delay(1000);
     tryFixRotation(-90);
+    moveDirDist(right, (Enes100.getX()-0.205)*100);
   }
   //if our first two happened to be orzo, we can leave and begin navigating
   if (plantablePlots == 2) {
     return;
   }
   //move to 3rd plot
-  moveDirDist(right, plotWidth/2+roverWidth/2+9); //9 cm away from plot -- marker
+  //moveDirDist(right, plotWidth/2+roverWidth/2+10.5); //10.5 cm away from plot -- marker
+
   if (Enes100.getY() > 1) {
     Enes100.getTheta();
     delay(1000);
@@ -651,11 +657,13 @@ void mission() {
   //run check and plant for 3rd plot
   if (getPrediction()) { //orzo
     plantablePlots++;
-    Enes100.println("3th: Orzo");
+    Enes100.print("3th: Orzo ");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
+      Enes100.println("(plot D)");
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()-0.18));
     } else {
+      Enes100.println("(plot B)");
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()+0.18));
     }
     if (hasSeed) {
@@ -694,11 +702,13 @@ void mission() {
   moveDirDist(left, plotWidth+3); //marker
   if (getPrediction()) { //orzo
     plantablePlots++;
-    Enes100.println("4th: Orzo");
+    Enes100.print("4th: Orzo ");
     //tell them that this plot is orzo
     if (Enes100.getY() > 1) {
+      Enes100.println("(plot C)");
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()-0.18));
     } else {
+      Enes100.println("(plot A)");
       Enes100.mission(LOCATION, Coordinate(Enes100.getX(), Enes100.getY()+0.18));
     }
     //you won't have a seed by the forth plot.
@@ -789,6 +799,10 @@ void loop () {
   //Enes100.println(Enes100.getY());
   moveLeft();
   moveDirDist(left, 20);
+  moveDirDist(front, 100);
+  if(Enes100.getTheta() != -1.0) { //if wifi system disconnects, it'll return x=-1, y=-1, theta=-1
+    tryFixRotation(0); //in case of more strafing
+  }
   moveForward();
   moveDirDist(right, 50);
 
@@ -814,7 +828,7 @@ void loop () {
   moveForward(2.9, X);
   //move under limbo
   moveRight(1.5, Y);*/
-  
+
   moveForward();
   delay(600000);
 }
